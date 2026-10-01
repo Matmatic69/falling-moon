@@ -18,6 +18,7 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
         id: s.id,
         nom: team.find((m) => m.id === s.id)?.nom ?? s.id,
         clients: s.clients,
+        sites: s.sites,
         comptes: s.comptes,
         contrats: s.contrats,
         score: s.score,
@@ -30,9 +31,11 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
     const groups = new Map<string, OrbitParticle[]>();
     d.accounts.forEach((a) => {
       const counts = new Map<string, number>();
+      const siteCounts = new Map<string, number>();
       a.clientIds.forEach((id) => {
         const o = owner(id) ?? "";
         counts.set(o, (counts.get(o) ?? 0) + 1);
+        if (d.isSite(id)) siteCounts.set(o, (siteCounts.get(o) ?? 0) + 1);
       });
       counts.forEach((n, o) => {
         const p: OrbitParticle = {
@@ -40,7 +43,7 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
           owner: o,
           size: Math.min(10, 1.8 + Math.sqrt(n + a.contrats) * 1),
           label: a.nom,
-          sub: `${plural(n, "site", "sites")}${a.contrats ? ` · ${plural(a.contrats, "contrat", "contrats")}` : ""} · ${a.ville}`,
+          sub: `${plural(siteCounts.get(o) ?? 0, "site", "sites")}${a.contrats ? ` · ${plural(a.contrats, "contrat", "contrats")}` : ""} · ${a.ville}`,
         };
         groups.set(o, [...(groups.get(o) ?? []), p]);
       });
@@ -55,7 +58,7 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
       out.push(...keep);
     });
     return out;
-  }, [d.accounts, owner]);
+  }, [d.accounts, d, owner]);
 
   const onMember = useCallback((id: string | null) => (id ? go({ view: "portefeuille", id }) : go({ view: isAdmin ? "repartition" : "recherche" })), [go, isAdmin]);
   const onParticle = useCallback(
@@ -66,8 +69,10 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
     [d.accounts, openClient],
   );
 
-  const total = d.active.length;
-  const contrats = d.active.filter((c) => c.contrat).length;
+  const total = d.sites.length;
+  const contrats = d.sites.filter((c) => c.contrat).length;
+  const poolAccounts = [...d.accounts.values()].filter((a) => a.clientIds.some((id) => !owner(id))).length;
+  const totalScore = Math.max(1, d.stats.reduce((x, y) => x + y.score, 0));
   const receivers = team.filter((m) => m.recoit);
   const recvStats = d.stats.filter((s) => receivers.some((r) => r.id === s.id));
   const maxR = Math.max(1, ...recvStats.map((s) => s.score));
@@ -83,17 +88,17 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
         <div className="grow">
           <h1>{isAdmin ? "Portefeuille clients" : `Bonjour ${me?.nom ?? ""}`}</h1>
           <p>
-            {fmt(total)} clients · {fmt(d.accounts.size)} comptes · {pct(contrats / Math.max(1, total))} sous contrat d'entretien
+            {fmt(d.accounts.size)} comptes · {fmt(total)} sites d'intervention · {pct(contrats / Math.max(1, total))} des sites sous contrat d'entretien
           </p>
         </div>
         {isAdmin && d.pool > 0 && (
           <button className="btn primary" onClick={() => go({ view: "repartition" })}>
-            <Icon name="shuffle" size={16} /> Répartir les {fmt(d.pool)} clients restants
+            <Icon name="shuffle" size={16} /> Répartir les {fmt(poolAccounts)} comptes restants
           </button>
         )}
       </div>
 
-      <Orbit team={team} bodies={bodies} pool={d.pool} particles={particles} theme={theme} me={isAdmin ? undefined : session.me} onMember={onMember} onParticle={onParticle} />
+      <Orbit team={team} bodies={bodies} pool={poolAccounts} particles={particles} theme={theme} me={isAdmin ? undefined : session.me} onMember={onMember} onParticle={onParticle} />
 
       <div className="grid g4" style={{ marginTop: 16 }}>
         {d.stats.map((s) => {
@@ -105,12 +110,12 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
                 {m.responsable && <span className="pill">Responsable</span>}
                 {s.id === session.me && !isAdmin && <span className="pill">Toi</span>}
               </span>
-              <span className="stat-value">{fmt(s.clients)}</span>
+              <span className="stat-value">{plural(s.comptes, "compte", "comptes")}</span>
               <span className="stat-sub">
-                {plural(s.comptes, "compte", "comptes")} · {plural(s.contrats, "contrat", "contrats")} · {pct(s.clients / Math.max(1, total))}
+                {plural(s.sites, "site", "sites")} · {plural(s.contrats, "contrat", "contrats")} · {pct(s.score / totalScore)} du poids
               </span>
               <div className="meter" style={{ marginTop: 6 }}>
-                <span style={{ width: w(s.clients / Math.max(1, total)), background: memberVar(team, s.id) }} />
+                <span style={{ width: w(s.score / totalScore), background: memberVar(team, s.id) }} />
               </div>
             </button>
           );
@@ -119,8 +124,8 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
           <span className="row">
             <Who team={team} id={undefined} />
           </span>
-          <span className="stat-value">{fmt(d.pool)}</span>
-          <span className="stat-sub">{d.pool ? "clients encore sans propriétaire" : "Tout est réparti"}</span>
+          <span className="stat-value">{plural(poolAccounts, "compte", "comptes")}</span>
+          <span className="stat-sub">{poolAccounts ? "encore sans propriétaire" : "Tout est réparti"}</span>
           {preview && (
             <span className="stat-sub">
               Proposition prête : écart {pct(preview.ecart, 1)} entre {receivers.map((r) => r.nom).join(" et ")}
@@ -165,7 +170,7 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
             </button>
           </div>
           {SEGMENTS.filter((s) => s.id !== "autre")
-            .map((s) => ({ s, n: d.active.filter((c) => c.segment === s.id).length }))
+            .map((s) => ({ s, n: d.sites.filter((c) => c.segment === s.id).length }))
             .sort((a, b) => b.n - a.n)
             .slice(0, 6)
             .map(({ s, n }) => (

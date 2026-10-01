@@ -190,7 +190,7 @@ export function App() {
           <button key={m.id} className="nav-item" aria-current={isActive({ view: "portefeuille", id: m.id }) ? "page" : undefined} onClick={() => go({ view: "portefeuille", id: m.id })}>
             <span className="nav-dot" style={{ background: memberVar(state.team, m.id) }} />
             {m.nom}
-            {m.id === session.me && !isAdmin ? <span className="badge">Toi</span> : <span className="badge">{d.stats.find((s) => s.id === m.id)?.clients ?? 0}</span>}
+            {m.id === session.me && !isAdmin ? <span className="badge">Toi</span> : <span className="badge" title="Comptes">{d.stats.find((s) => s.id === m.id)?.comptes ?? 0}</span>}
           </button>
         ))}
         <div className="nav-sep">{isAdmin ? "Gestion" : "Mes actions"}</div>

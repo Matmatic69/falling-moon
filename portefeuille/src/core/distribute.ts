@@ -1,4 +1,5 @@
-import { accountOf, activeClients, buildAccounts } from "./accounts";
+import { accountOf, activeClients, buildAccounts, weightFn } from "./accounts";
+import { computeRoles, type AddressRole } from "./roles";
 import { norm } from "./normalize";
 import { SEGMENTS } from "./segments";
 import type { Account, Client, Member, PortfolioState, SegmentId } from "./types";
@@ -19,6 +20,9 @@ export const REASON_LABEL: Record<Reason, string> = {
 export interface MemberStats {
   id: string;
   comptes: number;
+  /** Lieux d'intervention (hors adresses de facturation). */
+  sites: number;
+  /** Fiches ERP, adresses de facturation comprises. */
   clients: number;
   contrats: number;
   score: number;
@@ -54,9 +58,11 @@ const LYON: [number, number] = [45.758, 4.835];
  */
 export function propose(state: PortfolioState, accounts?: Map<string, Account>): Proposal {
   const { team, settings } = state;
-  const accts = accounts ?? buildAccounts(state.clients, state.merges, settings.poidsContrat);
-  const clients = new Map(activeClients(state.clients, state.merges).map((c) => [c.id, c]));
-  const weight = (c: Client) => 1 + (c.contrat ? settings.poidsContrat : 0);
+  const active = activeClients(state.clients, state.merges);
+  const roles = computeRoles(active, state.merges, settings.zone);
+  const accts = accounts ?? buildAccounts(state.clients, state.merges, settings.poidsContrat, settings.zone, roles);
+  const clients = new Map(active.map((c) => [c.id, c]));
+  const weight = weightFn(roles, settings.poidsContrat);
   const owners: Record<string, string> = {};
   const reasons: Record<string, Reason> = {};
   const responsable = team.find((m) => m.responsable);
@@ -88,7 +94,8 @@ export function propose(state: PortfolioState, accounts?: Map<string, Account>):
     }
     if (fixedScore.size) {
       // Compte coupé volontairement : les fiches libres restent à répartir, on ne partage que la partie libre.
-      const part: Account = { ...a, clientIds: free.map((c) => c.id), sites: free.length, score: free.reduce((s, c) => s + weight(c), 0) };
+      const siteIds = free.filter((c) => roles.get(c.id) === "site").map((c) => c.id);
+      const part: Account = { ...a, clientIds: free.map((c) => c.id), siteIds, sites: siteIds.length, score: Math.max(1, free.reduce((s, c) => s + weight(c), 0)) };
       pool.push(part);
       return;
     }
@@ -108,10 +115,10 @@ export function propose(state: PortfolioState, accounts?: Map<string, Account>):
 
   if (receivers.length) {
     if (settings.mode === "territoire") splitByTerritory(rest, receivers, owners, reasons);
-    else splitBySegment(rest, receivers, owners, reasons, accts, clients, settings.proximite, weight);
+    else splitBySegment(rest, receivers, owners, reasons, accts, clients, settings.proximite, weight, roles);
   } else rest.forEach((a) => (reasons[a.id] = "pool"));
 
-  const stats = memberStats(team, owners, clients, accts, weight);
+  const stats = memberStats(team, owners, clients, accts, weight, roles);
   const recv = stats.filter((s) => receivers.some((r) => r.id === s.id));
   const norms = recv.map((s) => s.score / receivers.find((r) => r.id === s.id)!.part);
   const mean = norms.reduce((s, v) => s + v, 0) / (norms.length || 1);
@@ -128,11 +135,17 @@ function splitBySegment(
   clients: Map<string, Client>,
   proximite: boolean,
   weight: (c: Client) => number,
+  roles: Map<string, AddressRole>,
 ) {
   const segLoad = new Map<string, Map<SegmentId, number>>(receivers.map((m) => [m.id, new Map()]));
   const total = new Map<string, number>(receivers.map((m) => [m.id, 0]));
   const presence = new Map<string, Map<string, number>>(receivers.map((m) => [m.id, new Map()]));
-  const place = (c: Client) => (c.cp ? c.cp : norm(c.ville));
+  // Proximité : uniquement les lieux d'intervention (une adresse de siège ne dit rien du terrain).
+  const place = (c: Client) => (roles.get(c.id) !== "site" ? "" : c.cp ? c.cp : norm(c.ville));
+  const addPresence = (m: string, c: Client) => {
+    const k = place(c);
+    if (k) presence.get(m)!.set(k, (presence.get(m)!.get(k) ?? 0) + 1);
+  };
 
   // Charge de départ : ce que chaque commercial tient déjà (codes ERP, choix manuels).
   accts.forEach((a) =>
@@ -143,7 +156,7 @@ function splitBySegment(
       const w = weight(c);
       segLoad.get(o)!.set(c.segment, (segLoad.get(o)!.get(c.segment) ?? 0) + w);
       total.set(o, total.get(o)! + w);
-      presence.get(o)!.set(place(c), (presence.get(o)!.get(place(c)) ?? 0) + 1);
+      addPresence(o, c);
     }),
   );
 
@@ -154,13 +167,14 @@ function splitBySegment(
 
   for (const [seg, list] of order) {
     const segTotal = list.reduce((s, a) => s + a.score, 0);
-    const slack = Math.max(1, (0.05 * segTotal) / partSum);
+    // Marge où la proximité peut départager : 1 % de la part de chacun dans la typologie.
+    const slack = Math.max(1, (0.01 * segTotal) / partSum);
     for (const a of list) {
       const load = (m: Member) => (segLoad.get(m.id)!.get(seg) ?? 0) / m.part;
       const min = Math.min(...receivers.map(load));
       let candidates = receivers.filter((m) => load(m) - min <= (proximite ? slack / m.part : 0));
       if (proximite && candidates.length > 1) {
-        const places = new Set(a.clientIds.map((id) => place(clients.get(id)!)));
+        const places = new Set(a.clientIds.map((id) => place(clients.get(id)!)).filter(Boolean));
         const affinity = (m: Member) => [...places].reduce((s, p) => s + (presence.get(m.id)!.get(p) ?? 0), 0);
         const best = Math.max(...candidates.map(affinity));
         if (best > 0) candidates = candidates.filter((m) => affinity(m) === best);
@@ -168,8 +182,7 @@ function splitBySegment(
       const chosen = candidates.sort((x, y) => load(x) - load(y) || total.get(x.id)! / x.part - total.get(y.id)! / y.part)[0];
       a.clientIds.forEach((id) => {
         owners[id] = chosen.id;
-        const c = clients.get(id)!;
-        presence.get(chosen.id)!.set(place(c), (presence.get(chosen.id)!.get(place(c)) ?? 0) + 1);
+        addPresence(chosen.id, clients.get(id)!);
       });
       segLoad.get(chosen.id)!.set(seg, (segLoad.get(chosen.id)!.get(seg) ?? 0) + a.score);
       total.set(chosen.id, total.get(chosen.id)! + a.score);
@@ -235,9 +248,10 @@ export function memberStats(
   clients: Map<string, Client>,
   accts: Map<string, Account>,
   weight: (c: Client) => number,
+  roles: Map<string, AddressRole>,
 ): MemberStats[] {
   const empty = () => Object.fromEntries(SEGMENTS.map((s) => [s.id, { clients: 0, score: 0 }])) as MemberStats["parSegment"];
-  const stats = new Map(team.map((m) => [m.id, { id: m.id, comptes: 0, clients: 0, contrats: 0, score: 0, parSegment: empty() }]));
+  const stats = new Map(team.map((m) => [m.id, { id: m.id, comptes: 0, sites: 0, clients: 0, contrats: 0, score: 0, parSegment: empty() }]));
   const acctOf = accountOf(accts);
   const counted = new Set<string>();
   clients.forEach((c) => {
@@ -246,9 +260,10 @@ export function memberStats(
     if (!s) return;
     const w = weight(c);
     s.clients++;
+    if (roles.get(c.id) === "site") s.sites++;
     s.score += w;
     if (c.contrat) s.contrats++;
-    s.parSegment[c.segment].clients++;
+    if (roles.get(c.id) === "site") s.parSegment[c.segment].clients++;
     s.parSegment[c.segment].score += w;
     const k = `${o}|${acctOf.get(c.id)}`;
     if (!counted.has(k)) {

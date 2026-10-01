@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { deptCode, deptName } from "../../core/geo";
+import { ROLE_LABEL } from "../../core/roles";
 import { search } from "../../core/search";
 import { SEGMENTS, SEGMENT_BY_ID } from "../../core/segments";
 import type { Client, SegmentId } from "../../core/types";
@@ -20,7 +21,7 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
   const [segment, setSegment] = useState<SegmentId | "">("");
   const [dept, setDept] = useState("");
   const [code, setCode] = useState("");
-  const [type, setType] = useState<"" | "payeur" | "site">("");
+  const [type, setType] = useState<"" | "facturation" | "site">("site");
   const [contrat, setContrat] = useState<"" | "oui" | "non">("");
   const [origine, setOrigine] = useState<"" | "erp" | "ajout">("");
   const [sort, setSort] = useState<Sort>("pertinence");
@@ -48,8 +49,8 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
       if (segment && c.segment !== segment) return false;
       if (dept && deptCode(c.cp) !== dept) return false;
       if (code && c.code !== code) return false;
-      if (type === "payeur" && c.payeur) return false;
-      if (type === "site" && !c.payeur) return false;
+      if (type === "facturation" && d.isSite(c.id)) return false;
+      if (type === "site" && !d.isSite(c.id)) return false;
       if (contrat === "oui" && !c.contrat) return false;
       if (contrat === "non" && c.contrat) return false;
       if (origine === "erp" && c.ajout) return false;
@@ -79,6 +80,8 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
       team,
       (c) => owner(c.id),
       (cd) => cd,
+      undefined,
+      (c) => ROLE_LABEL[d.roles.get(c.id) ?? "site"],
     );
     download(`Recherche-clients-${today()}.xlsx`, bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   };
@@ -145,9 +148,9 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
             ))}
           </select>
           <select className="select" value={type} onChange={(e) => setType(e.target.value as typeof type)} aria-label="Type">
-            <option value="">Payeurs et sites</option>
-            <option value="payeur">Payeurs seulement</option>
-            <option value="site">Sites seulement</option>
+            <option value="site">Sites d'intervention</option>
+            <option value="facturation">Adresses de facturation</option>
+            <option value="">Sites et facturation</option>
           </select>
           <select className="select" value={contrat} onChange={(e) => setContrat(e.target.value as typeof contrat)} aria-label="Contrat">
             <option value="">Avec ou sans contrat</option>
@@ -205,7 +208,7 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
                       {c.nom || "Client confidentiel"}
                     </b>
                     <div className="small muted ellipsis">
-                      {c.payeur ? `Site · payeur : ${d.byId.get(c.payeur)?.nom ?? c.payeurNom ?? c.payeur}` : "Payeur"}
+                      {d.isSite(c.id) ? (c.payeur ? `Site · payeur : ${d.byId.get(c.payeur)?.nom ?? c.payeurNom ?? c.payeur}` : "Site") : "Adresse de facturation"}
                       {c.contrat ? " · sous contrat" : ""}
                     </div>
                   </td>

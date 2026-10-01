@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { ROLE_LABEL } from "../../core/roles";
 import { SEGMENTS } from "../../core/segments";
 import { exportWorkbook } from "../../lib/excel";
 import { download, slug, today } from "../../lib/file";
@@ -17,7 +18,7 @@ export function Portfolio({ id, go, openClient }: { id: string; go: Nav; openCli
   const pending = state.ajouts.filter((a) => a.par === id && a.statut === "en-attente");
   if (!m || !s) return <div className="empty">Personne inconnue.</div>;
 
-  const total = d.active.length;
+  const total = d.sites.length;
   const segs = SEGMENTS.map((g) => ({ g, ...s.parSegment[g.id] }))
     .filter((x) => x.clients > 0)
     .sort((a, b) => b.clients - a.clients);
@@ -25,7 +26,7 @@ export function Portfolio({ id, go, openClient }: { id: string; go: Nav; openCli
   const canExport = isAdmin || id === session.me;
 
   const exportXlsx = () => {
-    const bytes = exportWorkbook(d.active, team, (c) => owner(c.id), (code) => (code ? `${code}${state.settings.libellesCodes[code] ? " – " + state.settings.libellesCodes[code] : ""}` : ""), id);
+    const bytes = exportWorkbook(d.active, team, (c) => owner(c.id), (code) => (code ? `${code}${state.settings.libellesCodes[code] ? " – " + state.settings.libellesCodes[code] : ""}` : ""), id, (c) => ROLE_LABEL[d.roles.get(c.id) ?? "site"]);
     download(`Portefeuille-${slug(m.nom)}-${today()}.xlsx`, bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   };
 
@@ -51,21 +52,21 @@ export function Portfolio({ id, go, openClient }: { id: string; go: Nav; openCli
 
       <div className="grid g4">
         <div className="card stat">
-          <span className="stat-label">Clients</span>
+          <span className="stat-label">Comptes clients</span>
           <span className="hero-num" style={{ fontSize: 44 }}>
-            {fmt(s.clients)}
+            {fmt(s.comptes)}
           </span>
-          <span className="stat-sub">{pct(s.clients / Math.max(1, total))} du fichier</span>
+          <span className="stat-sub">payeurs et leurs sites</span>
         </div>
         <div className="card stat">
-          <span className="stat-label">Comptes</span>
-          <span className="stat-value">{fmt(s.comptes)}</span>
-          <span className="stat-sub">payeurs et leurs sites</span>
+          <span className="stat-label">Sites d'intervention</span>
+          <span className="stat-value">{fmt(s.sites)}</span>
+          <span className="stat-sub">{pct(s.sites / Math.max(1, total))} des sites de l'entreprise</span>
         </div>
         <div className="card stat">
           <span className="stat-label">Contrats d'entretien</span>
           <span className="stat-value">{fmt(s.contrats)}</span>
-          <span className="stat-sub">{pct(s.contrats / Math.max(1, s.clients))} de ses clients</span>
+          <span className="stat-sub">{pct(s.contrats / Math.max(1, s.sites))} de ses sites</span>
         </div>
         <div className="card stat">
           <span className="stat-label">Poids du portefeuille</span>

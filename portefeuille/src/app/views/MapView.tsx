@@ -60,6 +60,7 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
   const [show, setShow] = useState<Set<string>>(() => new Set(initialOwner ? [initialOwner] : allOwners));
   const [segment, setSegment] = useState<SegmentId | "">("");
   const [contrat, setContrat] = useState(false);
+  const [facturation, setFacturation] = useState(false);
   const [tip, setTip] = useState<{ x: number; y: number; html: ReactNode } | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -68,13 +69,14 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
   const redraw = useRef<() => void>(() => {});
   const clusters = useRef<Cluster[]>([]);
 
+  // Par défaut : uniquement les lieux d'intervention (pas les sièges ni les adresses de facturation).
   const points = useMemo<Pt[]>(
     () =>
-      d.active
+      (facturation ? d.active : d.sites)
         .filter((c) => c.lat !== undefined && c.lng !== undefined)
         .map((c) => ({ c, x: px(c.lng!), y: py(c.lat!), o: owner(c.id) ?? POOL }))
         .filter((p) => show.has(p.o) && (!segment || p.c.segment === segment) && (!contrat || p.c.contrat)),
-    [d.active, owner, show, segment, contrat],
+    [d.active, d.sites, facturation, owner, show, segment, contrat],
   );
 
   const counts = useMemo(() => {
@@ -86,7 +88,7 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
   // Cadrage initial : là où sont 95 % des clients.
   const fit = () => {
     const el = wrap.current!;
-    const all = d.active.filter((c) => c.lat !== undefined);
+    const all = d.sites.filter((c) => c.lat !== undefined);
     const xs = all.map((c) => px(c.lng!)).sort((a, b) => a - b);
     const ys = all.map((c) => py(c.lat!)).sort((a, b) => a - b);
     const q = (arr: number[], f: number) => arr[Math.min(arr.length - 1, Math.max(0, Math.floor(arr.length * f)))] ?? 0;
@@ -176,8 +178,15 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
           ctx.fill();
           ctx.beginPath();
           ctx.arc(g.x, g.y, r, 0, Math.PI * 2);
-          ctx.fillStyle = colorOf(th, team, p.o || undefined);
-          ctx.fill();
+          if (d.isSite(p.c.id)) {
+            ctx.fillStyle = colorOf(th, team, p.o || undefined);
+            ctx.fill();
+          } else {
+            // adresse de facturation : anneau creux
+            ctx.strokeStyle = colorOf(th, team, p.o || undefined);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
           continue;
         }
         const r = Math.min(30, 7 + Math.sqrt(n) * 2.1);
@@ -307,6 +316,7 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
               <div className="dim">
                 {c.ville} · {SEGMENTS.find((s) => s.id === c.segment)?.court}
                 {c.contrat ? " · sous contrat" : ""}
+                {!d.isSite(c.id) ? " · adresse de facturation" : ""}
               </div>
               <div className="row small" style={{ gap: 6, marginTop: 4 }}>
                 <i style={{ width: 8, height: 8, borderRadius: 4, background: memberVar(team, o || undefined) }} />
@@ -394,14 +404,15 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
     redraw.current();
   };
 
-  const missing = d.active.length - d.active.filter((c) => c.lat !== undefined).length;
+  const missing = d.sites.length - d.sites.filter((c) => c.lat !== undefined).length;
+  const billing = d.active.length - d.sites.length;
 
   return (
     <>
       <div className="page-head">
         <div className="grow">
           <h1>Carte des clients</h1>
-          <p>Couleur = propriétaire · les cercles regroupent les clients proches : cliquez pour zoomer</p>
+          <p>Lieux d'intervention uniquement (pas les sièges) · couleur = propriétaire · les anneaux regroupent les sites proches : cliquez pour zoomer</p>
         </div>
       </div>
       <div className="row wrap" style={{ marginBottom: 12 }}>
@@ -421,6 +432,7 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
           ))}
         </select>
         <Switch checked={contrat} onChange={setContrat} label="Sous contrat seulement" />
+        <Switch checked={facturation} onChange={setFacturation} label={`Afficher aussi les ${fmt(billing)} adresses de facturation`} />
       </div>
       <div className="map-wrap" ref={wrap}>
         <canvas ref={canvas} role="img" aria-label="Carte des clients colorés par propriétaire" />
@@ -436,7 +448,9 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
           </button>
         </div>
         <div className="map-panel">
-          <b>{fmt(points.length)} clients affichés</b>
+          <b>
+            {fmt(points.length)} {facturation ? "adresses" : "sites d'intervention"}
+          </b>
           <div className="legend" style={{ marginTop: 6, flexDirection: "column", gap: 4 }}>
             {allOwners
               .filter((o) => show.has(o))

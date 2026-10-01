@@ -46,15 +46,16 @@ export async function runDistribution(file: string) {
   const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: "" });
   const { clients } = parseRows(rows);
   const st = createState(clients, "Export.xlsx", { responsable: { nom: "Responsable", code: "18" }, commerciaux: ["Commercial A", "Commercial B"], parti: { code: "17", nom: "" } });
-  for (const gc of [0, 10, 20]) for (const mode of ["type", "territoire"] as const) {
+  for (const gc of [10]) for (const mode of ["type", "territoire"] as const) for (const prox of mode === "type" ? [true, false] : [true]) {
     st.settings.grandsComptes = gc;
     st.settings.mode = mode;
+    st.settings.proximite = prox;
     const p = propose(st);
     const reasons = new Map<string, number>();
     Object.values(p.reasons).forEach((r) => reasons.set(r, (reasons.get(r) ?? 0) + 1));
-    console.log(`\n== grandsComptes=${gc} mode=${mode} écart=${(p.ecart * 100).toFixed(1)}%`, [...reasons].map(([k, v]) => `${k}:${v}`).join(" "));
+    console.log(`\n== grandsComptes=${gc} mode=${mode} proximité=${prox} écart=${(p.ecart * 100).toFixed(1)}%`, [...reasons].map(([k, v]) => `${k}:${v}`).join(" "));
     for (const s of p.stats) {
-      console.log(`${s.id.padEnd(7)} comptes ${String(s.comptes).padStart(4)}  fiches ${String(s.clients).padStart(5)}  contrats ${String(s.contrats).padStart(4)}  score ${String(s.score).padStart(6)}  | ` +
+      console.log(`${s.id.padEnd(7)} comptes ${String(s.comptes).padStart(4)}  sites ${String(s.sites).padStart(5)}  fiches ${String(s.clients).padStart(5)}  contrats ${String(s.contrats).padStart(4)}  score ${String(s.score).padStart(6)}  | ` +
         SEGMENTS.filter((g) => g.id !== "autre").map((g) => `${g.court.slice(0, 5)}:${s.parSegment[g.id].clients}`).join(" "));
     }
   }

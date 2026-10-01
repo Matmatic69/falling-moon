@@ -6,6 +6,7 @@ export interface OrbitBody {
   id: string;
   nom: string;
   clients: number;
+  sites: number;
   comptes: number;
   contrats: number;
   score: number;
@@ -346,10 +347,10 @@ export function Orbit({
           ctx.font = `700 ${big}px system-ui, sans-serif`;
           ctx.fillText(b.nom, L.x, L.y - big * 0.62);
           ctx.font = `600 ${big * 0.66}px system-ui, sans-serif`;
-          ctx.fillText(`${fmt(b.clients)} clients`, L.x, L.y + big * 0.35);
+          ctx.fillText(`${fmt(b.comptes)} comptes`, L.x, L.y + big * 0.35);
           ctx.font = `500 ${big * 0.5}px system-ui, sans-serif`;
           ctx.globalAlpha = 0.85;
-          if (R > 52) ctx.fillText(`${fmt(b.comptes)} comptes · ${fmt(b.contrats)} contrats`, L.x, L.y + big * 1.05);
+          if (R > 52) ctx.fillText(`${fmt(b.sites)} sites · ${fmt(b.contrats)} contrats`, L.x, L.y + big * 1.05);
           ctx.globalAlpha = 1;
         }
       });
@@ -390,7 +391,7 @@ export function Orbit({
         const b = live.current.bodies.find((x) => x.id === hit.id);
         setTip(
           hit.id === POOL
-            ? { x: ev.clientX, y: ev.clientY, title: `${fmt(live.current.pool)} clients à répartir`, sub: "Cliquez pour les voir" }
+            ? { x: ev.clientX, y: ev.clientY, title: `${fmt(live.current.pool)} comptes à répartir`, sub: "Cliquez pour les voir" }
             : { x: ev.clientX, y: ev.clientY, title: b?.nom ?? "", sub: `Score ${fmt(b?.score ?? 0)} · cliquez pour ouvrir le portefeuille` },
         );
       } else setTip(null);
@@ -420,7 +421,7 @@ export function Orbit({
 
   return (
     <div className="orbit-wrap" ref={wrapRef}>
-      <canvas ref={canvasRef} aria-label="Répartition du portefeuille : une bulle par personne, ses clients en orbite" role="img" />
+      <canvas ref={canvasRef} aria-label="Répartition du portefeuille : une bulle par personne, ses comptes en orbite" role="img" />
       <div className="orbit-legend">
         <span className="hide-mobile">Taille des bulles : poids du portefeuille (sites + contrats)</span>
         <span className="spacer" />

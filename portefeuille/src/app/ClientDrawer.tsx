@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { REASON_LABEL } from "../core/distribute";
+import { ROLE_LABEL } from "../core/roles";
 import { SEGMENTS, SEGMENT_BY_ID } from "../core/segments";
 import type { SegmentId } from "../core/types";
 import type { Nav } from "./App";
@@ -38,7 +39,7 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
         <div className="drawer-head">
           <div className="row">
             <span className="pill">{c.numero.startsWith("N-") ? "Ajouté dans l'outil" : `N° ${c.numero}`}</span>
-            <span className="pill">{c.type === "1" ? "Donneur d'ordre" : c.type === "3" ? "Particulier" : c.payeur ? "Site" : "Client"}</span>
+            <span className="pill">{ROLE_LABEL[d.roles.get(c.id) ?? "site"]}</span>
             <span className="spacer" />
             <button className="btn ghost icon" onClick={onClose} aria-label="Fermer">
               <Icon name="x" />
@@ -49,6 +50,16 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
             {c.adresse ? `${c.adresse}, ` : ""}
             {c.cp} {c.ville}
           </p>
+          {d.roles.get(c.id) === "facturation" && acct && (
+            <p className="small muted" style={{ marginTop: 4 }}>
+              Adresse de facturation (siège, régie…) : les lieux d'intervention sont ses {acct.sites} site(s) ci-dessous.
+            </p>
+          )}
+          {d.roles.get(c.id) === "hors-zone" && (
+            <p className="small muted" style={{ marginTop: 4 }}>
+              Facturé hors de la zone de travail ; aucun site n'est renseigné dans l'export pour ce client.
+            </p>
+          )}
         </div>
         <div className="drawer-body">
           <div className="answer">

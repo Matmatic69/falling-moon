@@ -78,6 +78,8 @@ export interface Settings {
   proximite: boolean;
   /** Libellé des codes ERP (ex. 17 → « Prénom (parti) »). */
   libellesCodes: Record<string, string>;
+  /** Départements de la zone de travail (absent = Auvergne-Rhône-Alpes et départements voisins). */
+  zone?: string[];
 }
 
 export interface JournalEntry {
@@ -146,6 +148,8 @@ export interface Account {
   id: string;
   nom: string;
   clientIds: string[];
+  /** Fiches qui sont des lieux d'intervention (hors adresses de facturation). */
+  siteIds: string[];
   sites: number;
   contrats: number;
   score: number;

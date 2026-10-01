@@ -68,8 +68,8 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
               <thead>
                 <tr>
                   <th />
-                  <th className="r">Fiches</th>
                   <th className="r">Comptes</th>
+                  <th className="r">Sites</th>
                   <th className="r">Contrats</th>
                   <th className="r">Poids</th>
                   <th className="r hide-mobile">Variation</th>
@@ -78,21 +78,21 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
               <tbody>
                 {p.stats.map((ps) => {
                   const cs = current.find((x) => x.id === ps.id)!;
-                  const delta = ps.clients - cs.clients;
+                  const delta = ps.sites - cs.sites;
                   return (
                     <tr key={ps.id}>
                       <td>
                         <Who team={team} id={ps.id} />
                       </td>
-                      <td className="r num">{fmt(ps.clients)}</td>
                       <td className="r num">{fmt(ps.comptes)}</td>
+                      <td className="r num">{fmt(ps.sites)}</td>
                       <td className="r num">{fmt(ps.contrats)}</td>
                       <td className="r num">
                         <b>{fmt(ps.score)}</b>
                       </td>
                       <td className="r num hide-mobile" style={{ color: delta ? "var(--text-2)" : "var(--muted)" }}>
                         {delta > 0 ? "+" : ""}
-                        {fmt(delta)} fiches
+                        {fmt(delta)} sites
                       </td>
                     </tr>
                   );

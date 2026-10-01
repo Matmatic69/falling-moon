@@ -20,12 +20,12 @@ dérivée par PBKDF2). Aucune donnée client n'est stockée dans ce dépôt.
 |---|---|
 | Accueil | Une bulle animée par personne, ses clients en orbite (taille = poids du portefeuille), la bulle grise des clients à répartir. Clic sur une bulle → son portefeuille ; clic sur un client → sa fiche. |
 | Tableau de bord | Typologies × propriétaire, départements, villes, taux de contrats d'entretien, 15 plus gros comptes, codes ERP d'origine (où sont partis les clients du commercial parti), qualité des données. |
-| Carte | Carte hors-ligne (départements, communes du Rhône), clients colorés par propriétaire, regroupés en anneaux quand on dézoome ; filtres par personne, typologie, contrat. |
+| Carte | Carte hors-ligne (départements, communes du Rhône) des sites d'intervention, colorés par propriétaire, regroupés en anneaux quand on dézoome ; filtres par personne, typologie, contrat ; adresses de facturation en option. |
 | Recherche (Ctrl + K) | « À qui appartient ce client ? » : nom, ville, n° client, téléphone, e-mail, SIREN. Recherche avancée avec filtres et export Excel. |
 | Répartition | Proposition automatique réglable, aperçu chiffré avant d'appliquer, attribution en un clic ou par lot, onglet « Code … (parti) » pour reprendre les clients du commercial parti qu'on gère encore. |
 | Doublons | Groupes de fiches en double (même nom + adresse, même SIRET au même endroit…), fusion ou « ce ne sont pas des doublons ». |
 | Ajouts | Les commerciaux proposent de nouveaux clients ; le responsable les valide. |
-| Réglages & fichiers | Équipe, libellés des codes ERP, fichiers des commerciaux, import d'un nouvel export, export Excel, mot de passe, journal. |
+| Réglages & fichiers | Équipe, libellés des codes ERP, zone de travail, fichiers des commerciaux, import d'un nouvel export, reprise d'un ancien fichier (après une mise à jour de l'outil), export Excel, mot de passe, journal. |
 
 ### Règles de répartition
 
@@ -39,7 +39,18 @@ dérivée par PBKDF2). Aucune donnée client n'est stockée dans ce dépôt.
      en privilégiant les villes où il est déjà présent ;
    - **par secteur** : des secteurs géographiques d'un seul tenant autour de Lyon, de poids égal.
 
-Le **poids** d'un compte = nombre de sites + un bonus (2 par défaut) par site sous contrat d'entretien.
+Le **poids** d'un compte = nombre de sites d'intervention + un bonus (2 par défaut) par site sous contrat
+d'entretien.
+
+### Sites et adresses de facturation
+
+L'export mélange deux sortes d'adresses. L'outil ne compte et ne cartographie que les **sites d'intervention** :
+
+- un payeur qui a des sites (siège, régie, syndic, donneur d'ordre) est une **adresse de facturation** : elle
+  n'apparaît ni sur la carte ni dans les sites, ses sites oui ;
+- un client facturé **hors de la zone de travail** (par défaut Auvergne-Rhône-Alpes et les départements voisins,
+  réglable) sans site renseigné est une facturation dont le site est inconnu ;
+- tout le reste (sites, clients facturés sur place) est un site d'intervention.
 
 ### Confidentialité et droits
 

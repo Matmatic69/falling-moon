@@ -271,7 +271,7 @@ export function AccountTable({
                               </div>
                             </td>
                             <td className="hide-mobile dim small">{SEGMENTS.find((s) => s.id === c.segment)?.court}</td>
-                            <td className="r small muted">{c.id === a.id ? "payeur" : "site"}</td>
+                            <td className="r small muted">{d.roles.get(id) === "site" ? "site" : "facturation"}</td>
                             <td className="r hide-mobile">{c.contrat ? <Icon name="check" size={14} /> : null}</td>
                             <td />
                             <td>

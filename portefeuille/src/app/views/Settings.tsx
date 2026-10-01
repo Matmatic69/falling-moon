@@ -1,5 +1,9 @@
 import { useMemo, useRef, useState } from "react";
-import { deriveKey } from "../../lib/crypto";
+import { ROLE_LABEL, ZONE_DEFAUT } from "../../core/roles";
+import type { Payload, PortfolioState } from "../../core/types";
+import { deriveKey, open, unlock, type Envelope } from "../../lib/crypto";
+import type { FileMeta } from "../../lib/file";
+import { idbGet } from "../../lib/idb";
 import { exportWorkbook, readExport } from "../../lib/excel";
 import { download, today } from "../../lib/file";
 import { makeCommercialFile, saveSnapshot } from "../files";
@@ -27,6 +31,48 @@ export function SettingsView() {
   const [newPw, setNewPw] = useState({ a: "", b: "" });
   const [importMsg, setImportMsg] = useState("");
   const erpInput = useRef<HTMLInputElement>(null);
+  const oldInput = useRef<HTMLInputElement>(null);
+  const [oldFile, setOldFile] = useState<File | null>(null);
+  const [oldPw, setOldPw] = useState("");
+  const [oldMsg, setOldMsg] = useState("");
+
+  /** Reprend l'état d'un fichier responsable plus ancien (ex. après une mise à jour de l'outil). */
+  const takeOver = async () => {
+    if (!oldFile) return;
+    setOldMsg("Lecture…");
+    try {
+      const html = await oldFile.text();
+      const m = html.match(/<script id="pf-data" type="application\/json">([\s\S]*?)<\/script>/);
+      if (!m) throw new Error("Ce fichier ne contient pas de portefeuille.");
+      const meta = JSON.parse(m[1]) as FileMeta;
+      if (meta.role !== "responsable") throw new Error("Seul un fichier responsable peut être repris.");
+      let value: Payload;
+      let key: CryptoKey;
+      try {
+        const r = await unlock<Payload>(meta.env, oldPw);
+        value = r.value;
+        key = r.session.key;
+      } catch {
+        throw new Error("Mot de passe incorrect pour ce fichier.");
+      }
+      let st: PortfolioState = value.state;
+      // La copie de travail de ce navigateur peut être plus récente que le fichier lui-même.
+      const local = await idbGet<{ savedAt: string; env: Envelope }>(`pf:${st.fileId}`);
+      if (local && local.savedAt > meta.savedAt) {
+        try {
+          st = await open<PortfolioState>(local.env, key);
+        } catch {
+          /* copie illisible : on garde le fichier */
+        }
+      }
+      store.update(`Données reprises depuis « ${oldFile.name} »`, () => ({ ...st, journal: st.journal }));
+      setOldMsg(`Données reprises (${fmt(st.clients.length)} fiches, enregistré le ${dateFr(st.savedAt, true)}). Téléchargez maintenant le fichier à jour : il garde votre mot de passe actuel.`);
+      setOldFile(null);
+      setOldPw("");
+    } catch (e) {
+      setOldMsg(e instanceof Error ? e.message : "Fichier illisible.");
+    }
+  };
 
   const codes = useMemo(() => {
     const m = new Map<string, number>();
@@ -246,7 +292,7 @@ export function SettingsView() {
               onClick={() =>
                 download(
                   `Portefeuille-complet-${today()}.xlsx`,
-                  exportWorkbook(d.active, team, (c) => owner(c.id), (code) => (code ? `${code}${state.settings.libellesCodes[code] ? " – " + state.settings.libellesCodes[code] : ""}` : "")),
+                  exportWorkbook(d.active, team, (c) => owner(c.id), (code) => (code ? `${code}${state.settings.libellesCodes[code] ? " – " + state.settings.libellesCodes[code] : ""}` : ""), undefined, (c) => ROLE_LABEL[d.roles.get(c.id) ?? "site"]),
                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
               }
@@ -261,6 +307,58 @@ export function SettingsView() {
             <p className="small muted">
               Le fichier se sauvegarde aussi tout seul dans ce navigateur (chiffré). Téléchargez-le régulièrement : c'est votre vraie sauvegarde. Ctrl + S fonctionne aussi.
             </p>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-head">
+            <h3 className="grow">Zone de travail</h3>
+          </div>
+          <p className="small muted" style={{ marginBottom: 10 }}>
+            Départements où vous intervenez. Un client facturé en dehors (siège à Paris, Lille…) sans site connu n'apparaît ni sur la carte ni dans les sites.
+          </p>
+          <input
+            className="input"
+            style={{ width: "100%" }}
+            defaultValue={(state.settings.zone ?? ZONE_DEFAUT).join(", ")}
+            onBlur={(e) => {
+              const zone = e.target.value
+                .split(/[\s,;]+/)
+                .map((x) => x.trim().toUpperCase())
+                .filter((x) => /^(\d{2}|2A|2B|97\d)$/.test(x));
+              if (zone.length && zone.join() !== (state.settings.zone ?? ZONE_DEFAUT).join()) {
+                actions.settings({ zone });
+                toast(`Zone de travail : ${zone.length} départements`);
+              }
+            }}
+            aria-label="Départements de la zone de travail"
+          />
+          <button className="btn sm ghost" style={{ marginTop: 8 }} onClick={() => (actions.settings({ zone: undefined }), toast("Zone par défaut : Auvergne-Rhône-Alpes et voisins"))}>
+            Revenir à Auvergne-Rhône-Alpes + voisins
+          </button>
+        </div>
+
+        <div className="card">
+          <div className="card-head">
+            <h3 className="grow">Reprendre un ancien fichier</h3>
+          </div>
+          <p className="small muted" style={{ marginBottom: 10 }}>
+            Quand vous recevez une nouvelle version de l'outil : ouvrez-la, puis reprenez ici votre ancien fichier responsable (répartition, choix manuels, doublons, ajouts…).
+          </p>
+          <div className="col">
+            <button className="btn" style={{ justifyContent: "flex-start" }} onClick={() => oldInput.current?.click()}>
+              <Icon name="upload" size={16} /> {oldFile ? oldFile.name : "Choisir l'ancien fichier .html"}
+            </button>
+            <input ref={oldInput} type="file" accept=".html,.htm" hidden onChange={(e) => (setOldFile(e.target.files?.[0] ?? null), (e.target.value = ""))} />
+            {oldFile && (
+              <>
+                <input className="input" type="password" placeholder="Mot de passe de l'ancien fichier" value={oldPw} onChange={(e) => setOldPw(e.target.value)} />
+                <button className="btn primary" disabled={!oldPw} onClick={() => void takeOver()}>
+                  Reprendre ses données
+                </button>
+              </>
+            )}
+            {oldMsg && <div className="banner small">{oldMsg}</div>}
           </div>
         </div>
 

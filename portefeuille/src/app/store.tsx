@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { accountOf, activeClients, buildAccounts, resolveMerge } from "../core/accounts";
+import { accountOf, activeClients, buildAccounts, resolveMerge, weightFn } from "../core/accounts";
+import { computeRoles, type AddressRole } from "../core/roles";
 import { findDuplicates, type DuplicateGroup } from "../core/dedupe";
 import { memberStats, propose, type MemberStats, type Proposal } from "../core/distribute";
 import { classify, defaultSegment } from "../core/segments";
@@ -30,6 +31,10 @@ export interface Derived {
   pool: number;
   index: SearchIndex;
   weight: (c: Client) => number;
+  roles: Map<string, AddressRole>;
+  isSite: (id: string) => boolean;
+  /** Lieux d'intervention actifs (hors adresses de facturation). */
+  sites: Client[];
 }
 
 type Updater = (s: PortfolioState) => PortfolioState;
@@ -147,20 +152,22 @@ export function StoreProvider({
     return () => clearTimeout(t);
   }, [state, dirty, session]);
 
-  const weight = useCallback((c: Client) => 1 + (c.contrat ? state.settings.poidsContrat : 0), [state.settings.poidsContrat]);
-
   const d = useMemo<Derived>(() => {
     const clients = withOverrides(state.clients, state);
     const active = activeClients(clients, state.merges);
     const byId = new Map(clients.map((c) => [c.id, c]));
-    const accounts = buildAccounts(clients, state.merges, state.settings.poidsContrat);
+    const roles = computeRoles(active, state.merges, state.settings.zone);
+    const weight = weightFn(roles, state.settings.poidsContrat);
+    const accounts = buildAccounts(clients, state.merges, state.settings.poidsContrat, state.settings.zone, roles);
     const acctOf = accountOf(accounts);
     const activeMap = new Map(active.map((c) => [c.id, c]));
-    const stats = memberStats(state.team, state.owners, activeMap, accounts, weight);
+    const stats = memberStats(state.team, state.owners, activeMap, accounts, weight, roles);
     const pool = active.filter((c) => !state.owners[c.id]).length;
-    return { active, byId, accounts, acctOf, stats, pool, index: buildIndex(active), weight };
+    const isSite = (id: string) => roles.get(id) === "site";
+    const sites = active.filter((c) => roles.get(c.id) === "site");
+    return { active, byId, accounts, acctOf, stats, pool, index: buildIndex(active), weight, roles, isSite, sites };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.clients, state.merges, state.segmentOverrides, state.owners, state.team, state.settings.poidsContrat, weight]);
+  }, [state.clients, state.merges, state.segmentOverrides, state.owners, state.team, state.settings.poidsContrat, state.settings.zone]);
 
   const owner = useCallback((id: string) => state.owners[resolveMerge(id, state.merges)] || undefined, [state.owners, state.merges]);
   const member = useCallback((id: string | undefined) => state.team.find((m) => m.id === id), [state.team]);
