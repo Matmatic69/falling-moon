@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.cache/
+# Données clients : jamais dans le dépôt (il est public)
+*.xls
+*.xlsx
+*.csv
+Portefeuille-*.html
+Ajouts-*.json
