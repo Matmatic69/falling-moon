@@ -28,9 +28,10 @@ export function buildAccounts(
   poidsContrat: number,
   zone?: string[],
   rolesIn?: Map<string, AddressRole>,
+  siteUnique?: string[],
 ): Map<string, Account> {
   const active = activeClients(clients, merges);
-  const roles = rolesIn ?? computeRoles(active, merges, zone);
+  const roles = rolesIn ?? computeRoles(active, merges, zone, siteUnique);
   const weight = weightFn(roles, poidsContrat);
   const ids = new Set(active.map((c) => c.id));
   const accounts = new Map<string, Account>();

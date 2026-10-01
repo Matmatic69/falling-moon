@@ -6,7 +6,7 @@ import type { SegmentId } from "../core/types";
 import type { Nav } from "./App";
 import { Icon } from "./icons";
 import { useStore } from "./store";
-import { dateFr, fmt, memberVar, useEscape, useToast, Who } from "./ui";
+import { dateFr, fmt, memberVar, Switch, useEscape, useToast, Who } from "./ui";
 
 export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose: () => void; openClient: (id: string) => void; go: Nav }) {
   const { state, d, owner, isAdmin, actions, proposal, session } = useStore();
@@ -248,14 +248,24 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
             </div>
           )}
 
-          {acct && acct.sites > 1 && (
+          {acct && acct.clientIds.length > 1 && (
             <div className="col" style={{ gap: 6 }}>
               <div className="row">
                 <h3 className="grow">Compte « {d.byId.get(acct.id)?.nom || "confidentiel"} »</h3>
                 <span className="muted small">
-                  {fmt(acct.sites)} fiches · {fmt(acct.contrats)} contrats
+                  {fmt(acct.sites)} site(s) · {fmt(acct.clientIds.length)} fiches · {fmt(acct.contrats)} contrats
                 </span>
               </div>
+              {isAdmin && (
+                <Switch
+                  checked={(state.siteUnique ?? []).includes(acct.id)}
+                  onChange={() => {
+                    actions.toggleSiteUnique(acct.id);
+                    toast((state.siteUnique ?? []).includes(acct.id) ? "Chaque site compte à nouveau" : "Compte compté comme un seul site");
+                  }}
+                  label="Compter ce compte comme un seul site"
+                />
+              )}
               <div className="card flush" style={{ maxHeight: 320, overflow: "auto" }}>
                 {acct.clientIds.map((sid) => {
                   const sc = d.byId.get(sid)!;

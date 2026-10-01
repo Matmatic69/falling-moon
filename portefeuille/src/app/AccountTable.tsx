@@ -168,6 +168,29 @@ export function AccountTable({
           <button className="btn sm ghost" onClick={() => (assign(selAccounts, null), setSelected(new Set()))}>
             Pool
           </button>
+          <select
+            className="select"
+            style={{ height: 30 }}
+            value=""
+            aria-label="Reclasser la typologie"
+            onChange={(e) => {
+              const seg = e.target.value as SegmentId;
+              if (!seg) return;
+              actions.setSegment(
+                selAccounts.flatMap((a) => a.clientIds),
+                seg,
+              );
+              toast(`${selAccounts.length} compte(s) reclassé(s) : ${SEGMENTS.find((s) => s.id === seg)?.label}`);
+              setSelected(new Set());
+            }}
+          >
+            <option value="">Reclasser…</option>
+            {SEGMENTS.filter((s) => s.id !== "autre").map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
           <button className="btn sm ghost" onClick={() => setSelected(new Set())}>
             Annuler
           </button>
@@ -240,7 +263,10 @@ export function AccountTable({
                         </div>
                       </td>
                       <td className="hide-mobile dim">{SEGMENTS.find((s) => s.id === a.segment)?.court}</td>
-                      <td className="r num">{fmt(a.sites)}</td>
+                      <td className="r num">
+                        {fmt(a.sites)}
+                        {(state.siteUnique ?? []).includes(a.id) && <div className="small muted">{fmt(a.clientIds.length - 1)} adr. regroupées</div>}
+                      </td>
                       <td className="r num hide-mobile">{a.contrats ? fmt(a.contrats) : <span className="muted">–</span>}</td>
                       <td className="r num">{fmt(a.score)}</td>
                       <td>

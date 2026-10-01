@@ -79,7 +79,8 @@ export async function makeCommercialFile(store: Store, memberId: string, passwor
     if (detail === "masque") {
       const h = await Promise.all(fingerprintKeys(c).map((k) => fingerprint(fpSalt, k)));
       empreintes.push({ h, owner: o ?? "" });
-      clients.push({ id: c.id, numero: "", type: c.type, nom: "", adresse: "", cp: c.cp, ville: c.ville, code: "", contrat: c.contrat, segment: c.segment, segmentSource: c.segmentSource, payeur: c.payeur, lat: c.lat, lng: c.lng, geo: c.geo });
+      const seg = d.byId.get(c.id)?.segment ?? c.segment;
+      clients.push({ id: c.id, numero: "", type: c.type, nom: "", adresse: "", cp: c.cp, ville: c.ville, code: "", contrat: c.contrat, segment: seg, segmentSource: "manuel", payeur: c.payeur, lat: c.lat, lng: c.lng, geo: c.geo });
     } else {
       const lite = { ...c };
       STRIP.forEach((k) => delete lite[k]);

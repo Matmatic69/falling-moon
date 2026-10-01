@@ -3,7 +3,7 @@
 //   npm run build                       → dist/portefeuille.html (vide : il demandera l'export ERP)
 //   npm run build -- --watch            → reconstruit à chaque modification
 //   npm run build -- --data Export.xlsx --password "…" --equipe "Prénom:18,Prénom2,Prénom3" --parti "17:Prénom"
-//                     [--appliquer] --out mon-fichier.html
+//                     [--appliquer] [--patch corrections.json] --out mon-fichier.html
 //                                       (--appliquer : fusionne les doublons certains et applique la répartition)
 //                                       → fichier déjà rempli et chiffré (à ne jamais committer)
 import { build, context, transform } from "esbuild";
@@ -65,7 +65,9 @@ async function prefill() {
   const [respNom, respCode = ""] = resp.split(":");
   const [partiCode, partiNom = ""] = (opt("--parti") ?? "").split(":");
   const setup = { responsable: { nom: respNom, code: respCode }, commerciaux: others, parti: partiCode ? { code: partiCode, nom: partiNom } : undefined };
-  return mod.prefill(path.resolve(dataFile), password, setup, args.includes("--appliquer"));
+  const patchFile = opt("--patch");
+  const patch = patchFile ? JSON.parse(fs.readFileSync(path.resolve(patchFile), "utf8")) : {};
+  return mod.prefill(path.resolve(dataFile), password, setup, args.includes("--appliquer"), patch);
 }
 
 async function once() {

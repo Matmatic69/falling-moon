@@ -3,7 +3,7 @@ import { accountOf, activeClients, buildAccounts, resolveMerge, weightFn } from 
 import { computeRoles, type AddressRole } from "../core/roles";
 import { findDuplicates, type DuplicateGroup } from "../core/dedupe";
 import { memberStats, propose, type MemberStats, type Proposal } from "../core/distribute";
-import { classify, defaultSegment } from "../core/segments";
+import { classify, classifyAll, defaultSegment } from "../core/segments";
 import { buildIndex, type SearchIndex } from "../core/search";
 import { applyCodeOwners, applyProposal, randomId } from "../core/state";
 import type { Account, Ajout, Client, Empreinte, Member, PortfolioState, Role, SegmentId, Settings } from "../core/types";
@@ -64,6 +64,7 @@ export interface Actions {
   applyProposal: () => void;
   resetDistribution: () => void;
   setSegment: (ids: string[], seg: SegmentId | null) => void;
+  toggleSiteUnique: (accountId: string) => void;
   merge: (primary: string, others: string[]) => void;
   unmerge: (id: string) => void;
   ignoreDuplicate: (key: string) => void;
@@ -83,11 +84,9 @@ export function useStore(): StoreValue {
   return v;
 }
 
-/** Applique les corrections de typologie faites à la main. */
+/** Typologies recalculées (règles actuelles + corrections faites à la main + rattachement au payeur). */
 function withOverrides(clients: Client[], s: PortfolioState): Client[] {
-  const ov = s.segmentOverrides;
-  if (!Object.keys(ov).length) return clients;
-  return clients.map((c) => (ov[c.id] ? { ...c, segment: ov[c.id], segmentSource: "manuel" } : c));
+  return classifyAll(clients, s.segmentOverrides, s.merges);
 }
 
 export function storageKey(state: PortfolioState, session: Session): string {
@@ -156,7 +155,7 @@ export function StoreProvider({
     const clients = withOverrides(state.clients, state);
     const active = activeClients(clients, state.merges);
     const byId = new Map(clients.map((c) => [c.id, c]));
-    const roles = computeRoles(active, state.merges, state.settings.zone);
+    const roles = computeRoles(active, state.merges, state.settings.zone, state.siteUnique);
     const weight = weightFn(roles, state.settings.poidsContrat);
     const accounts = buildAccounts(clients, state.merges, state.settings.poidsContrat, state.settings.zone, roles);
     const acctOf = accountOf(accounts);
@@ -167,7 +166,7 @@ export function StoreProvider({
     const sites = active.filter((c) => roles.get(c.id) === "site");
     return { active, byId, accounts, acctOf, stats, pool, index: buildIndex(active), weight, roles, isSite, sites };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.clients, state.merges, state.segmentOverrides, state.owners, state.team, state.settings.poidsContrat, state.settings.zone]);
+  }, [state.clients, state.merges, state.segmentOverrides, state.owners, state.team, state.settings.poidsContrat, state.settings.zone, state.siteUnique]);
 
   const owner = useCallback((id: string) => state.owners[resolveMerge(id, state.merges)] || undefined, [state.owners, state.merges]);
   const member = useCallback((id: string | undefined) => state.team.find((m) => m.id === id), [state.team]);
@@ -222,6 +221,19 @@ export function StoreProvider({
           const segmentOverrides = { ...s.segmentOverrides };
           ids.forEach((id) => (seg ? (segmentOverrides[id] = seg) : delete segmentOverrides[id]));
           return { ...s, segmentOverrides };
+        }),
+      toggleSiteUnique: (accountId) =>
+        update(null, (s) => {
+          const cur = new Set(s.siteUnique ?? []);
+          const nom = s.clients.find((c) => c.id === accountId)?.nom ?? accountId;
+          const on = !cur.has(accountId);
+          if (on) cur.add(accountId);
+          else cur.delete(accountId);
+          return {
+            ...s,
+            siteUnique: [...cur],
+            journal: [{ at: new Date().toISOString(), par: session.me, msg: on ? `« ${nom} » compté comme un seul site` : `« ${nom} » : chaque site compte à nouveau` }, ...s.journal],
+          };
         }),
       merge: (primary, others) =>
         update(`Doublon fusionné : ${others.length + 1} fiches → ${state.clients.find((c) => c.id === primary)?.nom ?? primary}`, (s) => {

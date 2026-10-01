@@ -1,6 +1,6 @@
 import { locate } from "./geo";
 import { norm } from "./normalize";
-import { classify, defaultSegment } from "./segments";
+import { classify, classifyAll } from "./segments";
 import type { Client } from "./types";
 
 type Field =
@@ -137,19 +137,11 @@ export function parseRows(rows: unknown[][]): { clients: Client[]; report: Parse
   };
 }
 
-/**
- * Un site sans typologie claire prend celle de son payeur (ex. les sites d'une
- * mairie, d'une banque ou d'un syndic), quand celle-ci est explicite.
- */
+/** Rattachement au payeur et valeurs par défaut (voir classifyAll). */
 export function inheritFromPayer(clients: Client[]): void {
-  const byId = new Map(clients.map((c) => [c.id, c]));
-  for (const c of clients) {
-    if (c.segmentSource !== "defaut" || !c.payeur) continue;
-    const p = byId.get(c.payeur);
-    if (p && p.segment !== "autre" && p.segment !== "particulier" && p.segmentSource !== "defaut") {
-      c.segment = p.segment;
-      c.segmentSource = "payeur";
-    }
-  }
-  for (const c of clients) if (c.segmentSource === "defaut" && c.segment === "autre") c.segment = defaultSegment(c.famille);
+  const done = classifyAll(clients, {}, {});
+  done.forEach((c, i) => {
+    clients[i].segment = c.segment;
+    clients[i].segmentSource = c.segmentSource;
+  });
 }

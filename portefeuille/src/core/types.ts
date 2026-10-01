@@ -1,6 +1,9 @@
 export type SegmentId =
   | "industrie"
   | "tertiaire"
+  | "facilities"
+  | "property"
+  | "syndic"
   | "boulangerie"
   | "commerce"
   | "hotellerie"
@@ -119,6 +122,8 @@ export interface PortfolioState {
   journal: JournalEntry[];
   /** Clé partagée avec les fichiers des commerciaux pour lire leurs ajouts. */
   returnKeys: Record<string, string>;
+  /** Comptes comptés comme un seul site (ex. une collectivité aux nombreux bâtiments) : id du payeur. */
+  siteUnique?: string[];
 }
 
 export type Role = "responsable" | "commercial";

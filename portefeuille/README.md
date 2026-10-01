@@ -42,6 +42,19 @@ dérivée par PBKDF2). Aucune donnée client n'est stockée dans ce dépôt.
 Le **poids** d'un compte = nombre de sites d'intervention + un bonus (2 par défaut) par site sous contrat
 d'entretien.
 
+### Typologies
+
+Industrie & entreprises · Tertiaire, bureaux & banques · **Facility management** · **Property management** ·
+**Syndics & copropriétés** · Bailleurs & immobilier · Collectivités & enseignement · Santé & médico-social ·
+Commerces & automobile · Boulangeries & métiers de bouche · Hôtellerie & restauration · Parkings · Particuliers.
+
+Elles sont recalculées à chaque ouverture à partir des familles ERP et du nom, plus les corrections faites à la
+main (fiche client, ou « Reclasser… » sur une sélection de comptes). Les sites d'un intermédiaire (facility
+manager, property manager, syndic) prennent sa typologie : c'est lui le client.
+
+Un compte peut être **compté comme un seul site** (fiche client → interrupteur), par exemple une collectivité
+aux nombreux bâtiments : ses adresses sont regroupées et ne pèsent plus qu'un site.
+
 ### Sites et adresses de facturation
 
 L'export mélange deux sortes d'adresses. L'outil ne compte et ne cartographie que les **sites d'intervention** :
@@ -76,8 +89,11 @@ npm run analyse -- /chemin/Export.xlsx   # rapport en console (typologies, doubl
 npm run analyse -- /chemin/Export.xlsx --distribution
 ```
 
-`npm run build -- --data Export.xlsx --password "…" --out fichier.html` produit un fichier déjà rempli et
-chiffré (usage local : ne jamais le committer, `.gitignore` l'exclut).
+`npm run build -- --data Export.xlsx --password "…" --equipe "Prénom:18,Prénom2,Prénom3" --parti "17:Prénom"
+--appliquer --patch corrections.json --out fichier.html` produit un fichier déjà rempli et chiffré, doublons
+certains fusionnés et répartition appliquée. `corrections.json` (local) peut contenir `siteUnique`, `segments`
+(numéro → typologie) et `epingler` (prénom → numéros de payeur). Usage local uniquement : ne jamais committer ces
+fichiers, `.gitignore` exclut les fichiers générés.
 
 ### Organisation
 

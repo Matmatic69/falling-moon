@@ -59,7 +59,7 @@ const LYON: [number, number] = [45.758, 4.835];
 export function propose(state: PortfolioState, accounts?: Map<string, Account>): Proposal {
   const { team, settings } = state;
   const active = activeClients(state.clients, state.merges);
-  const roles = computeRoles(active, state.merges, settings.zone);
+  const roles = computeRoles(active, state.merges, settings.zone, state.siteUnique);
   const accts = accounts ?? buildAccounts(state.clients, state.merges, settings.poidsContrat, settings.zone, roles);
   const clients = new Map(active.map((c) => [c.id, c]));
   const weight = weightFn(roles, settings.poidsContrat);

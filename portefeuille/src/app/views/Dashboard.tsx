@@ -220,6 +220,11 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
                 <td />
               </tr>
               <tr>
+                <td>Adresses regroupées (comptes comptés comme un seul site)</td>
+                <td className="r num">{fmt(d.active.filter((c) => d.roles.get(c.id) === "regroupe").length)}</td>
+                <td />
+              </tr>
+              <tr>
                 <td>Facturés hors zone, sans site connu dans l'export</td>
                 <td className="r num">{fmt(horsZone)}</td>
                 <td />

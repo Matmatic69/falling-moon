@@ -1,5 +1,5 @@
 import { norm } from "./normalize";
-import type { SegmentId, SegmentSource } from "./types";
+import type { Client, SegmentId, SegmentSource } from "./types";
 
 export interface SegmentDef {
   id: SegmentId;
@@ -11,7 +11,10 @@ export interface SegmentDef {
 export const SEGMENTS: SegmentDef[] = [
   { id: "industrie", label: "Industrie & entreprises", court: "Industrie" },
   { id: "tertiaire", label: "Tertiaire, bureaux & banques", court: "Tertiaire" },
-  { id: "immobilier", label: "Immobilier, syndics & bailleurs", court: "Immobilier" },
+  { id: "facilities", label: "Facility management", court: "Facilities" },
+  { id: "property", label: "Property management", court: "Property mgmt" },
+  { id: "syndic", label: "Syndics & copropriétés", court: "Syndics" },
+  { id: "immobilier", label: "Bailleurs & immobilier", court: "Bailleurs / immo" },
   { id: "public", label: "Collectivités & enseignement", court: "Public" },
   { id: "sante", label: "Santé & médico-social", court: "Santé" },
   { id: "commerce", label: "Commerces & automobile", court: "Commerce" },
@@ -34,7 +37,7 @@ const SOUS_FAMILLE: Record<string, SegmentId> = {
   BM: "public", ME: "public", GN: "public", HV: "public", MO: "public", SG: "public", SM: "public", GF: "public", CS: "public",
   CH: "sante", CM: "sante", DE: "sante", PH: "sante", VE: "sante", MR: "sante", MM: "sante", RA: "sante", HE: "sante", FY: "sante", CR: "sante",
   HO: "hotellerie", BR: "hotellerie", HR: "hotellerie", RR: "hotellerie",
-  IB: "immobilier", SL: "immobilier",
+  IB: "property", SL: "syndic",
   TR: "industrie", BT: "industrie", F2: "industrie", MN: "industrie", TM: "industrie", GR: "industrie", EI: "industrie", LM: "industrie",
   IE: "tertiaire", LA: "tertiaire",
   GA: "commerce", CA: "commerce", CC: "commerce", PP: "commerce", LC: "commerce", TP: "commerce", MA: "commerce",
@@ -48,7 +51,7 @@ const FAMILLE: Record<string, SegmentId> = {
   HR: "hotellerie",
   GS: "commerce", GA: "commerce", CO: "commerce", AT: "commerce",
   PV: "parking", SC: "parking",
-  IM: "immobilier", RI: "immobilier", AG: "immobilier", SI: "immobilier", PE: "immobilier", PI: "immobilier",
+  IM: "immobilier", RI: "property", AG: "immobilier", SI: "immobilier", PE: "immobilier", PI: "immobilier",
   MO: "immobilier", OH: "immobilier", AB: "immobilier", CP: "immobilier", LO: "immobilier", LT: "immobilier", MB: "immobilier", AL: "industrie",
   GR: "industrie", FA: "industrie", EN: "industrie",
   PA: "particulier", MI: "particulier",
@@ -56,8 +59,18 @@ const FAMILLE: Record<string, SegmentId> = {
 
 type Rule = [SegmentId, RegExp];
 
+/**
+ * Intermédiaires : le client est l'intermédiaire, pas l'occupant du site.
+ * Leurs sites prennent leur typologie (un site facturé à un property manager est du property management).
+ */
+export const INTERMEDIAIRES = new Set<SegmentId>(["facilities", "property", "syndic"]);
+
 // Mots-clés très sûrs : ils priment sur la famille ERP.
 const STRONG: Rule[] = [
+  ["public", /\b(MAIRIE|HOTEL DE VILLE|AGGLOMERATION|COMMUNAUTE D AGGLOMERATION|COMMUNAUTE DE COMMUNES)\b/],
+  ["syndic", /\b(SDC|SYNDIC\w*|SYNDICAT DES COPROPRIETAIRES|COPROPRIETE|COPRO|REGIE|ASL|AFUL)\b/],
+  ["property", /\b(PROPERTY|PROPERTIES|PROPERTY MANAGEMENT|ASSET MANAGEMENT|ASSET|REPM|PM|REAL ESTATE|INVESTMENT MANAGEMENT)\b/],
+  ["facilities", /\b(FACILITY|FACILITIES|FM|MULTITECHNIQUE\w*|MULTI SERVICES?|MULTISERVICES?|ENERGIES? SERVICES|ENERGIE PERFORMANCE|ENERGIE ET MAINTENANCE|GESTION TECHNIQUE)\b/],
   ["boulangerie", /\b(BOULANG\w*|PATISS\w*|FOURNIL|VIENNOISER\w*|TALMELIER|MIE CALINE)\b/],
   ["parking", /\b(PARKING|PARKINGS|PARC DE STATIONNEMENT|PARC RELAIS)\b/],
   ["sante", /\b(EHPAD|CLINIQUE|HOPITAL|HOPITAUX|HOSPITALIER|PHARMACIE|DENTAIRE|RADIOLOG\w*|MAISON DE RETRAITE|MAISON RETRAITE|RPA|VETERINAIRE)\b/],
@@ -68,8 +81,8 @@ const STRONG: Rule[] = [
 const KEYWORDS: Rule[] = [
   ["public", /\b(MAIRIE|HOTEL DE VILLE|VILLE DE|COMMUNE|COMMUNAUTE|METROPOLE|DEPARTEMENT|PREFECTURE|GENDARMERIE|POLICE|POMPIERS?|SDIS|CASERNE|ECOLE|COLLEGE|LYCEE|UNIVERSITE|IUT|CAMPUS|GROUPE SCOLAIRE|GYMNASE|STADE|PISCINE|PATINOIRE|MEDIATHEQUE|BIBLIOTHEQUE|MUSEE|CCAS|MJC|CENTRE SOCIAL|CENTRE TECHNIQUE|DECHETTERIE|STATION EPURATION|CIMETIERE|EGLISE|PAROISSE|MOSQUEE|FINANCES PUBLIQUES|TRESOR PUBLIC|COMPTABLE PUBLIC|CFP|MDM|TRIBUNAL|CAF|CPAM|URSSAF|CRECHE|EAJE|SNCF|GARE|BOULODROME|SALLE DES FETES|ATELIERS MUNICIPAUX|GARAGE MUNICIPAL|OFFICE DE TOURISME|SCOLAIRE|FUNERAIRE|FUNEBRES|PLANETARIUM|AERODROME|TENNIS|CLUB|SPORTS?|ENSATT|ARMEE)\b/],
   ["sante", /\b(MEDICAL|MEDICALE|MEDIC|SANTE|CENTRE MEDICAL|LABORATOIRE D ANALYSES|KINE\w*|INFIRMIER\w*|OPHTALMO\w*|IRM|SENIORS?|FOYER|HANDICAP\w*|IME|ESAT|CAMSP|DITEP|APAJH|ADAPEI|MEDICO|AUDITION|ASSOCIATION|FONDATION)\b/],
-  ["immobilier", /\b(SDC|SYNDIC|SYNDICAT|COPRO\w*|ASL|AFUL|SCI|IMMOBILIER\w*|IMMO|FONCIER\w*|REGIE|PROPERTY|HABITAT|OPAC|OPH|LOGEMENTS?|LOTISSEMENT|RESIDENCE|PATRIMOINE|INDIVISION|C O|LOCAL|LOCAUX|PARC D ACTIVITES?|PARC ACTIVITES?|ACTIPOLE|MINI PARC|(?<!FITNESS )PARK)\b/],
-  ["commerce", /\b(FITNESS|MAGASIN|BOUTIQUE|SUPERMARCHE|HYPERMARCHE|BRICO\w*|PRESSING|TABAC|PRESSE|COIFF\w*|BEAUTE|OPTIQUE|OPTICIEN|BIJOUTERIE|FLEURISTE|CAVE|CENTRE COMMERCIAL|POLE COMMERCIAL|GALERIE|MARKET|GARAGE|AUTOMOBILES?|AUTO|PNEUS?|CONCESSION|CARROSSERIE|LAVAGE|STATION SERVICE)\b/],
+  ["immobilier", /\b(SCI|IMMOBILIER\w*|IMMO|FONCIER\w*|HABITAT|OPAC|OPH|LOGEMENTS?|LOTISSEMENT|RESIDENCE|PATRIMOINE|INDIVISION|C O|LOCAL|LOCAUX|PARC D ACTIVITES?|PARC ACTIVITES?|ACTIPOLE|MINI PARC|(?<!FITNESS )PARK)\b/],
+  ["commerce", /\b(FITNESS|MAGASIN|BOUTIQUE|(?:SUPER|HYPER|INTER)MARCHES?|SUPERETTE|ALIMENTATION|BRICO\w*|PRESSING|TABAC|PRESSE|COIFF\w*|BEAUTE|OPTIQUE|OPTICIEN|BIJOUTERIE|FLEURISTE|CAVE|CENTRE COMMERCIAL|POLE COMMERCIAL|GALERIE|MARKET|GARAGE|AUTOMOBILES?|AUTO|PNEUS?|CONCESSION|CARROSSERIE|LAVAGE|STATION SERVICE)\b/],
   ["boulangerie", /\b(BOUCHERIE|CHARCUTERIE|FROMAGERIE|FROMAGE|CHOCOLAT\w*|PRIMEUR|EPICERIE|TRAITEUR|PAIN)\b/],
   ["hotellerie", /\b(HOTEL|HOTELS|CAFE|BISTRO\w*|BAR|SNACK|CROISIERE|RESIDENCE HOTELIERE|APPART HOTEL|GOLF)\b/],
   ["tertiaire", /\b(BANQUE|BANCAIRE|LCL|CREDIT|ASSURANCES?|MUTUELLE|MUTUALITE|NOTAIRE|NOTARIAL|AVOCATS?|CABINET|EXPERT\w*|COMPTABLE|CONSEIL|CONSULTING|BUREAUX?|SIEGE|CENTRE D AFFAIRES|BUSINESS|TECHNOPARK|TECHNOPOLE|PEPINIERE|COWORKING|INFORMATIQUE|DIGITAL|SOFTWARE|TELECOM|ARCHITECTE|INGENIERIE|BUREAU D ETUDES|INTERIM|FORMATION|INSTITUT|AGENCE|ENGINEERING|PROCUREMENT|IMMEUBLE)\b/],
@@ -111,4 +124,35 @@ const FAMILLES_ENTREPRISES = new Set(["BA", "EN", "90", ""]);
 
 export function defaultSegment(famille: string | undefined): SegmentId {
   return FAMILLES_ENTREPRISES.has((famille || "").trim()) ? "industrie" : "autre";
+}
+
+/**
+ * Typologie de toutes les fiches, recalculée à partir des données brutes (les règles peuvent évoluer
+ * sans réimporter) : corrections manuelles, puis règles, puis rattachement au payeur.
+ */
+export function classifyAll(clients: Client[], overrides: Record<string, SegmentId>, merges: Record<string, string>): Client[] {
+  const first = clients.map((c) => {
+    if (overrides[c.id]) return c.segment === overrides[c.id] && c.segmentSource === "manuel" ? c : { ...c, segment: overrides[c.id], segmentSource: "manuel" as const };
+    // Fiche masquée (fichier commercial) ou typologie choisie à l'ajout : on garde la typologie enregistrée.
+    if (!c.nom || c.segmentSource === "manuel") return c;
+    const r = classify(c);
+    return r.segment === c.segment && r.source === c.segmentSource ? c : { ...c, segment: r.segment, segmentSource: r.source };
+  });
+  const byId = new Map(first.map((c) => [c.id, c]));
+  const resolve = (id: string) => {
+    let cur = id;
+    for (let i = 0; i < 10 && merges[cur]; i++) cur = merges[cur];
+    return cur;
+  };
+  return first.map((c) => {
+    if (c.segmentSource === "manuel") return c;
+    const p = c.payeur ? byId.get(resolve(c.payeur)) : undefined;
+    if (p && p.id !== c.id) {
+      if (INTERMEDIAIRES.has(p.segment) || (c.segmentSource === "defaut" && p.segment !== "autre" && p.segment !== "particulier" && p.segmentSource !== "defaut")) {
+        return p.segment === c.segment ? c : { ...c, segment: p.segment, segmentSource: "payeur" as const };
+      }
+    }
+    if (c.segmentSource === "defaut" && c.segment === "autre") return { ...c, segment: defaultSegment(c.famille) };
+    return c;
+  });
 }
