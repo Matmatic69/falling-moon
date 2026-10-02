@@ -34,7 +34,7 @@ export async function run(file: string, out?: string) {
   const byId = new Map(clients.map((c) => [c.id, c]));
   for (const g of dups.slice(0, 12)) console.log(g.confiance, g.raisons.join(" / "), "→", g.ids.map((id) => `${id}:${byId.get(id)!.nom}|${byId.get(id)!.cp}|${byId.get(id)!.code}`).join("  ;  "));
 
-  const accounts = buildAccounts(clients, {}, 2);
+  const accounts = buildAccounts(clients, {});
   console.log("\nCOMPTES", accounts.size);
   if (out) fs.writeFileSync(out, JSON.stringify({ clients, dups }));
 }
@@ -53,17 +53,17 @@ export async function runDistribution(file: string) {
     const p = propose(st);
     const reasons = new Map<string, number>();
     Object.values(p.reasons).forEach((r) => reasons.set(r, (reasons.get(r) ?? 0) + 1));
-    console.log(`\n== grandsComptes=${gc} mode=${mode} proximité=${prox} écart=${(p.ecart * 100).toFixed(1)}%`, [...reasons].map(([k, v]) => `${k}:${v}`).join(" "));
+    console.log(`\n== grandsComptes=${gc} mode=${mode} proximité=${prox} écart=${p.ecartComptes} comptes (${(p.ecart * 100).toFixed(1)}%)`, [...reasons].map(([k, v]) => `${k}:${v}`).join(" "));
     for (const s of p.stats) {
-      console.log(`${s.id.padEnd(7)} comptes ${String(s.comptes).padStart(4)}  sites ${String(s.sites).padStart(5)}  fiches ${String(s.clients).padStart(5)}  contrats ${String(s.contrats).padStart(4)}  score ${String(s.score).padStart(6)}  | ` +
-        SEGMENTS.filter((g) => g.id !== "autre").map((g) => `${g.court.slice(0, 5)}:${s.parSegment[g.id].clients}`).join(" "));
+      console.log(`${s.id.padEnd(7)} comptes ${String(s.comptes).padStart(4)}  | ` +
+        SEGMENTS.filter((g) => g.id !== "autre").map((g) => `${g.court.slice(0, 5)}:${s.parSegment[g.id]}`).join(" "));
     }
   }
-  const accts = buildAccounts(clients, {}, 2);
+  const accts = buildAccounts(clients, {});
   st.settings.grandsComptes = 10; st.settings.mode = "type";
   const p = propose(st, accts);
   console.log("\nGrands comptes réservés:");
-  [...accts.values()].filter((a) => p.reasons[a.id] === "grand-compte").forEach((a) => console.log(` ${a.nom} (${a.sites} sites, ${a.contrats} contrats, score ${a.score}, codes ${a.codes})`));
+  [...accts.values()].filter((a) => p.reasons[a.id] === "grand-compte").forEach((a) => console.log(` ${a.nom} (${a.sites} sites, codes ${a.codes})`));
   console.log("\nComptes rattachés au responsable via son code :", [...accts.values()].filter((a) => p.reasons[a.id] === "compte" && p.owners[a.clientIds[0]] === st.team[0].id).length);
   void REASON_LABEL;
 }

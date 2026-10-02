@@ -1,14 +1,13 @@
 import { useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
-import { deptCode, deptName } from "../../core/geo";
+import { mainOf } from "../../core/accounts";
+import { cityKey, deptCode, deptName } from "../../core/geo";
 import { ZONE_DEFAUT } from "../../core/roles";
 import { SEGMENTS } from "../../core/segments";
-import type { Client } from "../../core/types";
+import type { Account } from "../../core/types";
 import type { Nav } from "../App";
 import { Icon } from "../icons";
 import { useStore } from "../store";
-import { fmt, memberVar, OwnerBar, pct, Seg, Tooltip, Who, w } from "../ui";
-
-type Measure = "sites" | "poids";
+import { fmt, memberVar, OwnerBar, pct, Tooltip, Who, w } from "../ui";
 
 interface Row {
   key: string;
@@ -22,39 +21,36 @@ const POOL = "";
 export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string) => void }) {
   const { state, d, owner, duplicates, isAdmin } = useStore();
   const team = state.team;
-  const [measure, setMeasure] = useState<Measure>("sites");
   const [tip, setTip] = useState<{ x: number; y: number; row: Row } | null>(null);
   const owners = [...team.map((m) => m.id), POOL];
-  const value = (c: Client) => (measure === "sites" ? 1 : d.weight(c));
+  const accts = useMemo(() => [...d.accounts.values()], [d.accounts]);
 
-  // Géographie et typologies : sur les lieux d'intervention (en poids : toutes les fiches, les sièges ne pesant que leurs contrats).
-  const group = (key: (c: Client) => string, label: (k: string) => string, all = false) => {
+  // Tout se compte en comptes, chacun chez son propriétaire principal ; géographie : là où le compte a le plus de sites.
+  const group = (key: (a: Account) => string, label: (k: string) => string) => {
     const rows = new Map<string, Row>();
-    for (const c of all && measure === "poids" ? d.active : d.sites) {
-      const k = key(c);
+    for (const a of accts) {
+      const k = key(a);
       if (!k) continue;
       const r = rows.get(k) ?? { key: k, label: label(k), byOwner: new Map(), total: 0 };
-      const o = owner(c.id) ?? POOL;
-      const v = value(c);
-      r.byOwner.set(o, (r.byOwner.get(o) ?? 0) + v);
-      r.total += v;
+      const o = d.acctOwner.get(a.id) ?? POOL;
+      r.byOwner.set(o, (r.byOwner.get(o) ?? 0) + 1);
+      r.total++;
       rows.set(k, r);
     }
     return [...rows.values()].sort((a, b) => b.total - a.total);
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const bySegment = useMemo(() => group((c) => c.segment, (k) => SEGMENTS.find((s) => s.id === k)!.label, true), [d.active, measure, state.owners]);
+  const bySegment = useMemo(() => group((a) => a.segment, (k) => SEGMENTS.find((s) => s.id === k)!.label), [accts, d.acctOwner]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const byDept = useMemo(() => group((c) => deptCode(c.cp), (k) => `${deptName(k)} (${k})`).slice(0, 10), [d.sites, measure, state.owners]);
+  const deptRows = useMemo(() => group((a) => mainOf(a, d.byId, (c) => deptCode(c.cp)), (k) => `${deptName(k)} (${k})`), [accts, d.acctOwner]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const byCity = useMemo(() => group((c) => (c.cp.startsWith("690") && /^LYON/i.test(c.ville) ? "LYON" : c.ville.replace(/\s*CEDEX.*$/i, "").toUpperCase()), (k) => k.charAt(0) + k.slice(1).toLowerCase()).slice(0, 12), [d.sites, measure, state.owners]);
+  const byCity = useMemo(() => group((a) => mainOf(a, d.byId, (c) => cityKey(c.cp, c.ville)), (k) => k.charAt(0) + k.slice(1).toLowerCase()).slice(0, 12), [accts, d.acctOwner]);
+  const byDept = deptRows.slice(0, 10);
 
-  const total = d.sites.length;
-  const contrats = d.sites.filter((c) => c.contrat).length;
-  const depts = new Set(d.sites.map((c) => deptCode(c.cp)).filter(Boolean)).size;
-  const topDept = byDept[0]?.key;
-  const inTopDept = d.sites.filter((c) => deptCode(c.cp) === topDept).length;
+  const total = d.accounts.size;
+  const located = deptRows.reduce((s, r) => s + r.total, 0);
+  const fiches = d.active.length;
   const billing = d.active.filter((c) => d.roles.get(c.id) === "facturation").length;
   const horsZone = d.active.filter((c) => d.roles.get(c.id) === "hors-zone").length;
   const zone = new Set(state.settings.zone ?? ZONE_DEFAUT);
@@ -65,26 +61,20 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
   const geoApprox = d.sites.filter((c) => c.geo !== "cp").length;
   const dups = isAdmin ? duplicates().length : 0;
 
-  const contractRate = SEGMENTS.map((s) => {
-    const list = d.sites.filter((c) => c.segment === s.id);
-    return { s, n: list.length, k: list.filter((c) => c.contrat).length };
-  })
-    .filter((x) => x.n > 0)
-    .sort((a, b) => b.k / b.n - a.k / a.n);
-
-  const topAccounts = useMemo(() => [...d.accounts.values()].sort((a, b) => b.score - a.score).slice(0, 15), [d.accounts]);
+  const topAccounts = useMemo(() => [...accts].sort((a, b) => b.score - a.score || a.nom.localeCompare(b.nom)).slice(0, 15), [accts]);
 
   const codes = useMemo(() => {
     const m = new Map<string, Map<string, number>>();
-    for (const c of d.active) {
-      const k = c.code || "—";
-      const row = m.get(k) ?? new Map<string, number>();
-      const o = owner(c.id) ?? POOL;
-      row.set(o, (row.get(o) ?? 0) + 1);
-      m.set(k, row);
+    for (const a of accts) {
+      const o = d.acctOwner.get(a.id) ?? POOL;
+      for (const k of a.codes.length ? a.codes : [""]) {
+        const row = m.get(k || "—") ?? new Map<string, number>();
+        row.set(o, (row.get(o) ?? 0) + 1);
+        m.set(k || "—", row);
+      }
     }
     return [...m].map(([code, row]) => ({ code, row, n: [...row.values()].reduce((s, v) => s + v, 0) })).sort((a, b) => b.n - a.n);
-  }, [d.active, owner]);
+  }, [accts, d.acctOwner]);
 
   const color = (id: string) => (id === POOL ? "var(--pool)" : memberVar(team, id));
   const parts = (r: Row) => owners.map((id) => ({ id, value: r.byOwner.get(id) ?? 0, color: color(id) }));
@@ -110,48 +100,41 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
             Source : {state.source} · importé le {new Date(state.importedAt).toLocaleDateString("fr-FR")}
           </p>
         </div>
-        <Seg<Measure>
-          value={measure}
-          onChange={setMeasure}
-          options={[
-            ["sites", "Nombre de sites"],
-            ["poids", "Poids (sites + contrats)"],
-          ]}
-        />
       </div>
 
       <div className="grid g4">
         <div className="card stat">
-          <span className="stat-label">Sites d'intervention</span>
-          <span className="hero-num">{fmt(total)}</span>
-          <span className="stat-sub">sièges et adresses de facturation exclus</span>
-        </div>
-        <div className="card stat">
           <span className="stat-label">Comptes clients</span>
-          <span className="stat-value">{fmt(d.accounts.size)}</span>
-          <span className="stat-sub">un payeur et ses sites</span>
+          <span className="hero-num">{fmt(total)}</span>
+          <span className="stat-sub">un client = un compte, quel que soit son nombre de sites</span>
         </div>
         <div className="card stat">
-          <span className="stat-label">Sites sous contrat d'entretien</span>
-          <span className="stat-value">{fmt(contrats)}</span>
-          <span className="stat-sub">{pct(contrats / Math.max(1, total))} des sites</span>
+          <span className="stat-label">À répartir</span>
+          <span className="stat-value">{fmt(d.pool)}</span>
+          <span className="stat-sub">{d.pool ? `${pct(d.pool / Math.max(1, total))} des comptes` : "Tout est réparti"}</span>
+        </div>
+        <div className="card stat">
+          <span className="stat-label">Première typologie</span>
+          <span className="stat-value">{bySegment[0] ? SEGMENTS.find((g) => g.id === bySegment[0].key)!.court : "–"}</span>
+          <span className="stat-sub">
+            {bySegment[0] ? `${fmt(bySegment[0].total)} comptes · ${pct(bySegment[0].total / Math.max(1, total))}` : ""}
+          </span>
         </div>
         <div className="card stat">
           <span className="stat-label">Départements</span>
-          <span className="stat-value">{fmt(depts)}</span>
+          <span className="stat-value">{fmt(deptRows.length)}</span>
           <span className="stat-sub">
-            {pct(inTopDept / Math.max(1, total))} des sites : {byDept[0]?.label.split(" (")[0]}
+            {pct((byDept[0]?.total ?? 0) / Math.max(1, located))} des comptes : {byDept[0]?.label.split(" (")[0]}
           </span>
         </div>
-
       </div>
 
       <div className="grid g2" style={{ marginTop: 16 }}>
         <div className="card span2">
           <div className="card-head">
             <div className="grow">
-              <h3>Typologie des sites</h3>
-              <p>Qui tient quoi, typologie par typologie (lieux d'intervention)</p>
+              <h3>Typologie des comptes</h3>
+              <p>Qui tient quoi, typologie par typologie, en nombre de comptes</p>
             </div>
             {legend}
           </div>
@@ -164,7 +147,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
           <div className="card-head">
             <div className="grow">
               <h3>Départements</h3>
-              <p>Les 10 premiers, en sites d'intervention</p>
+              <p>Les 10 premiers, en comptes (là où le compte a le plus de sites)</p>
             </div>
           </div>
           {byDept.map((r) => (
@@ -176,7 +159,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
           <div className="card-head">
             <div className="grow">
               <h3>Villes</h3>
-              <p>Les 12 premières en sites (Lyon : tous arrondissements)</p>
+              <p>Les 12 premières, en comptes (Lyon : tous arrondissements)</p>
             </div>
           </div>
           {byCity.map((r) => (
@@ -187,40 +170,19 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
         <div className="card">
           <div className="card-head">
             <div className="grow">
-              <h3>Taux de contrats d'entretien</h3>
-              <p>Part des sites sous contrat, par typologie</p>
-            </div>
-          </div>
-          {contractRate.map(({ s, n, k }) => (
-            <div className="hbar" key={s.id}>
-              <span className="hbar-label ellipsis">{s.label}</span>
-              <span className="hbar-track">
-                <span style={{ width: w(k / n), background: "var(--m1)", borderRadius: "0 4px 4px 0" }} />
-              </span>
-              <span className="hbar-value">{pct(k / n)}</span>
-            </div>
-          ))}
-          <p className="small muted" style={{ marginTop: 8 }}>
-            {fmt(contrats)} sites sous contrat. Un site sous contrat compte {state.settings.poidsContrat + 1} fois dans le poids d'un portefeuille.
-          </p>
-        </div>
-
-        <div className="card">
-          <div className="card-head">
-            <div className="grow">
               <h3>Qualité des données</h3>
-              <p>Ce que le nettoyage a corrigé, et ce qui reste à surveiller</p>
+              <p>Ce que le nettoyage a corrigé, et ce qui reste à surveiller ({fmt(fiches)} fiches ERP)</p>
             </div>
           </div>
           <table className="table">
             <tbody>
               <tr>
-                <td>Adresses de facturation (sièges, régies, syndics) — exclues des sites</td>
+                <td>Adresses de facturation (sièges, régies, syndics) — hors carte</td>
                 <td className="r num">{fmt(billing)}</td>
                 <td />
               </tr>
               <tr>
-                <td>Adresses regroupées (comptes comptés comme un seul site)</td>
+                <td>Adresses regroupées (comptes à site unique)</td>
                 <td className="r num">{fmt(d.active.filter((c) => d.roles.get(c.id) === "regroupe").length)}</td>
                 <td />
               </tr>
@@ -230,7 +192,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
                 <td />
               </tr>
               <tr>
-                <td>Sites hors zone de travail (chantiers ponctuels)</td>
+                <td>Adresses d'intervention hors zone (chantiers ponctuels)</td>
                 <td className="r num">{fmt(sitesHorsZone)}</td>
                 <td />
               </tr>
@@ -240,9 +202,9 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
                 <td />
               </tr>
               <tr>
-                <td>Typologie déduite (classement estimé)</td>
+                <td>Fiches à typologie estimée</td>
                 <td className="r num">{fmt(estimated)}</td>
-                <td className="r num muted">{pct(estimated / Math.max(1, total))}</td>
+                <td className="r num muted">{pct(estimated / Math.max(1, fiches))}</td>
               </tr>
               <tr>
                 <td>Corrigées à la main</td>
@@ -250,14 +212,14 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
                 <td />
               </tr>
               <tr>
-                <td>Sites à position approximative (CEDEX, ville)</td>
+                <td>Adresses à position approximative (CEDEX, ville)</td>
                 <td className="r num">{fmt(geoApprox)}</td>
-                <td className="r num muted">{pct(geoApprox / Math.max(1, total))}</td>
+                <td />
               </tr>
               <tr>
-                <td>Sans téléphone ni e-mail</td>
+                <td>Fiches sans téléphone ni e-mail</td>
                 <td className="r num">{fmt(noContact)}</td>
-                <td className="r num muted">{pct(noContact / Math.max(1, total))}</td>
+                <td className="r num muted">{pct(noContact / Math.max(1, fiches))}</td>
               </tr>
               <tr>
                 <td>Clients ajoutés dans l'outil</td>
@@ -272,7 +234,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
           <div className="card-head" style={{ padding: "18px 18px 0" }}>
             <div className="grow">
               <h3>Les 15 plus gros comptes</h3>
-              <p>Classés par poids : sites d'intervention, contrats d'entretien comptés en plus</p>
+              <p>Classés par nombre de sites d'intervention</p>
             </div>
           </div>
           <div className="table-wrap">
@@ -282,8 +244,6 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
                   <th>Compte</th>
                   <th className="hide-mobile">Typologie</th>
                   <th className="r">Sites</th>
-                  <th className="r">Contrats</th>
-                  <th className="r">Poids</th>
                   <th>Propriétaire</th>
                 </tr>
               </thead>
@@ -298,8 +258,6 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
                       </td>
                       <td className="hide-mobile dim">{SEGMENTS.find((s) => s.id === a.segment)?.court}</td>
                       <td className="r num">{fmt(a.sites)}</td>
-                      <td className="r num">{fmt(a.contrats)}</td>
-                      <td className="r num">{fmt(a.score)}</td>
                       <td>
                         <div className="row" style={{ gap: 4 }}>
                           {[...os].map((o) => (
@@ -319,7 +277,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
           <div className="card-head">
             <div className="grow">
               <h3>Par personne</h3>
-              <p>Poids = sites + contrats ({state.settings.poidsContrat} pts de plus par contrat)</p>
+              <p>Nombre de comptes et part du portefeuille</p>
             </div>
           </div>
           <table className="table">
@@ -327,9 +285,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
               <tr>
                 <th />
                 <th className="r">Comptes</th>
-                <th className="r">Sites</th>
-                <th className="r">Contrats</th>
-                <th className="r">Poids</th>
+                <th className="r">Part</th>
               </tr>
             </thead>
             <tbody>
@@ -339,9 +295,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
                     <Who team={team} id={s.id} />
                   </td>
                   <td className="r num">{fmt(s.comptes)}</td>
-                  <td className="r num">{fmt(s.sites)}</td>
-                  <td className="r num">{fmt(s.contrats)}</td>
-                  <td className="r num">{fmt(s.score)}</td>
+                  <td className="r num">{pct(s.comptes / Math.max(1, total))}</td>
                 </tr>
               ))}
             </tbody>
@@ -352,7 +306,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
           <div className="card-head">
             <div className="grow">
               <h3>Codes commerciaux d'origine (ERP)</h3>
-              <p>Où sont partis les clients de chaque ancien code</p>
+              <p>Où sont partis les comptes de chaque ancien code</p>
             </div>
           </div>
           {codes.slice(0, 8).map((c) => (
@@ -368,7 +322,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
               </div>
             </div>
           ))}
-          {codes.length > 8 && <p className="small muted">+ {codes.length - 8} autres codes ({fmt(codes.slice(8).reduce((s, c) => s + c.n, 0))} fiches)</p>}
+          {codes.length > 8 && <p className="small muted">+ {codes.length - 8} autres codes ({fmt(codes.slice(8).reduce((s, c) => s + c.n, 0))} comptes)</p>}
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
-import { SEGMENTS } from "../../core/segments";
+import { ecartOf } from "../../core/distribute";
+import { SEGMENTS, SEGMENT_BY_ID } from "../../core/segments";
 import { Icon } from "../icons";
 import { useStore } from "../store";
 import { fmt, memberVar, pct, plural, useTheme, Who, w } from "../ui";
@@ -17,33 +18,27 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
       d.stats.map((s) => ({
         id: s.id,
         nom: team.find((m) => m.id === s.id)?.nom ?? s.id,
-        clients: s.clients,
-        sites: s.sites,
         comptes: s.comptes,
-        contrats: s.contrats,
-        score: s.score,
       })),
     [d.stats, team],
   );
 
-  // Particules : les plus gros comptes de chacun (taille ∝ score), plus un échantillon du reste.
+  // Particules : les plus gros comptes de chacun (taille ∝ nombre de sites), plus un échantillon du reste.
   const particles = useMemo<OrbitParticle[]>(() => {
     const groups = new Map<string, OrbitParticle[]>();
     d.accounts.forEach((a) => {
       const counts = new Map<string, number>();
-      const siteCounts = new Map<string, number>();
       a.clientIds.forEach((id) => {
         const o = owner(id) ?? "";
         counts.set(o, (counts.get(o) ?? 0) + 1);
-        if (d.isSite(id)) siteCounts.set(o, (siteCounts.get(o) ?? 0) + 1);
       });
       counts.forEach((n, o) => {
         const p: OrbitParticle = {
           key: `${a.id}|${counts.size > 1 ? o : ""}`,
           owner: o,
-          size: Math.min(10, 1.8 + Math.sqrt(n + a.contrats) * 1),
+          size: Math.min(10, 1.8 + Math.sqrt(n)),
           label: a.nom,
-          sub: `${plural(siteCounts.get(o) ?? 0, "site", "sites")}${a.contrats ? ` · ${plural(a.contrats, "contrat", "contrats")}` : ""} · ${a.ville}`,
+          sub: `${SEGMENT_BY_ID[a.segment].court} · ${a.ville}`,
         };
         groups.set(o, [...(groups.get(o) ?? []), p]);
       });
@@ -69,15 +64,13 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
     [d.accounts, openClient],
   );
 
-  const total = d.sites.length;
-  const contrats = d.sites.filter((c) => c.contrat).length;
-  const poolAccounts = [...d.accounts.values()].filter((a) => a.clientIds.some((id) => !owner(id))).length;
-  const totalScore = Math.max(1, d.stats.reduce((x, y) => x + y.score, 0));
+  const totalAccounts = Math.max(1, d.accounts.size);
+  const poolAccounts = d.pool;
   const receivers = team.filter((m) => m.recoit);
   const recvStats = d.stats.filter((s) => receivers.some((r) => r.id === s.id));
-  const maxR = Math.max(1, ...recvStats.map((s) => s.score));
-  const started = recvStats.some((s) => s.score > 0);
-  const ecart = recvStats.length > 1 && started ? (Math.max(...recvStats.map((s) => s.score)) - Math.min(...recvStats.map((s) => s.score))) / maxR : 0;
+  const maxR = Math.max(1, ...recvStats.map((s) => s.comptes));
+  const started = recvStats.some((s) => s.comptes > 0);
+  const { ecart, ecartComptes } = ecartOf(d.stats, receivers.filter((r) => r.part > 0));
   const preview = isAdmin && d.pool > 0 ? proposal() : null;
   const me = team.find((m) => m.id === session.me);
   const departed = Object.entries(state.settings.libellesCodes).find(([, v]) => /\(parti\)/i.test(v));
@@ -88,7 +81,7 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
         <div className="grow">
           <h1>{isAdmin ? "Portefeuille clients" : `Bonjour ${me?.nom ?? ""}`}</h1>
           <p>
-            {fmt(d.accounts.size)} comptes · {fmt(total)} sites d'intervention · {pct(contrats / Math.max(1, total))} des sites sous contrat d'entretien
+            {fmt(d.accounts.size)} comptes clients · {poolAccounts ? `${fmt(poolAccounts)} encore à répartir` : "tout est réparti"}
           </p>
         </div>
         {isAdmin && d.pool > 0 && (
@@ -105,17 +98,15 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
           const m = team.find((t) => t.id === s.id)!;
           return (
             <button key={s.id} className="card stat" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => go({ view: "portefeuille", id: s.id })}>
-              <span className="row">
+              <span className="row wrap">
                 <Who team={team} id={s.id} />
                 {m.responsable && <span className="pill">Responsable</span>}
                 {s.id === session.me && !isAdmin && <span className="pill">Toi</span>}
               </span>
               <span className="stat-value">{plural(s.comptes, "compte", "comptes")}</span>
-              <span className="stat-sub">
-                {plural(s.sites, "site", "sites")} · {plural(s.contrats, "contrat", "contrats")} · {pct(s.score / totalScore)} du poids
-              </span>
+              <span className="stat-sub">{pct(s.comptes / totalAccounts)} des comptes clients</span>
               <div className="meter" style={{ marginTop: 6 }}>
-                <span style={{ width: w(s.score / totalScore), background: memberVar(team, s.id) }} />
+                <span style={{ width: w(s.comptes / totalAccounts), background: memberVar(team, s.id) }} />
               </div>
             </button>
           );
@@ -128,7 +119,7 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
           <span className="stat-sub">{poolAccounts ? "encore sans propriétaire" : "Tout est réparti"}</span>
           {preview && (
             <span className="stat-sub">
-              Proposition prête : écart {pct(preview.ecart, 1)} entre {receivers.map((r) => r.nom).join(" et ")}
+              Proposition prête : écart de {plural(preview.ecartComptes, "compte", "comptes")} entre {receivers.map((r) => r.nom).join(" et ")}
             </span>
           )}
         </button>
@@ -147,16 +138,16 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
             )}
           </div>
           <p className="dim small" style={{ marginBottom: 12 }}>
-            Écart de poids entre {receivers.map((r) => r.nom).join(" et ")} : <b className="num">{pct(ecart, 1)}</b>
+            Écart entre {receivers.map((r) => r.nom).join(" et ")} : <b className="num">{plural(ecartComptes, "compte", "comptes")}</b> ({pct(ecart, 1)})
           </p>
           {recvStats.map((s) => (
             <div key={s.id} style={{ marginBottom: 10 }}>
               <div className="row small">
                 <span className="grow">{team.find((m) => m.id === s.id)?.nom}</span>
-                <span className="num dim">{fmt(s.score)} pts</span>
+                <span className="num dim">{plural(s.comptes, "compte", "comptes")}</span>
               </div>
               <div className="meter">
-                <span style={{ width: `${(s.score / maxR) * 100}%`, background: memberVar(team, s.id) }} />
+                <span style={{ width: `${(s.comptes / maxR) * 100}%`, background: memberVar(team, s.id) }} />
               </div>
             </div>
           ))}
@@ -170,7 +161,7 @@ export function Home({ go, openClient }: { go: Nav; openClient: (id: string) => 
             </button>
           </div>
           {SEGMENTS.filter((s) => s.id !== "autre")
-            .map((s) => ({ s, n: d.sites.filter((c) => c.segment === s.id).length }))
+            .map((s) => ({ s, n: [...d.accounts.values()].filter((a) => a.segment === s.id).length }))
             .sort((a, b) => b.n - a.n)
             .slice(0, 6)
             .map(({ s, n }) => (

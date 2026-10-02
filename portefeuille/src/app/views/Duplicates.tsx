@@ -125,7 +125,6 @@ export function Duplicates({ openClient }: { openClient: (id: string) => void })
                       <div className="row small" style={{ marginTop: 8 }}>
                         <Who team={team} id={owner(id)} />
                         <span className="muted">{SEGMENT_BY_ID[c.segment].court}</span>
-                        {c.contrat && <span className="pill">contrat</span>}
                         {sites.get(id) ? <span className="pill">{sites.get(id)} sites</span> : null}
                       </div>
                     </label>

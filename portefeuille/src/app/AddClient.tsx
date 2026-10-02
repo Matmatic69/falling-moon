@@ -19,7 +19,6 @@ export function AddClient({ initialName, onClose, openClient }: { initialName: s
   const responsable = team.find((m) => m.responsable);
   const [f, setF] = useState({ nom: initialName, adresse: "", cp: "", ville: "", tel: "", mail: "", contact: "", siren: "", note: "" });
   const [segment, setSegment] = useState<SegmentId | "">("");
-  const [contrat, setContrat] = useState(false);
   const [assignTo, setAssignTo] = useState<string>(isAdmin ? responsable?.id ?? "" : session.me);
   const [force, setForce] = useState(false);
   const [maskedOwner, setMaskedOwner] = useState<string | null>(null);
@@ -65,7 +64,6 @@ export function AddClient({ initialName, onClose, openClient }: { initialName: s
         contact: f.contact.trim() || undefined,
         siren: f.siren.replace(/\s/g, "") || undefined,
         segment: (segment || undefined) as SegmentId | undefined,
-        contrat,
         ajout: { par: session.me, le: new Date().toISOString(), note: f.note.trim() || undefined },
       },
       session.me,
@@ -205,10 +203,6 @@ export function AddClient({ initialName, onClose, openClient }: { initialName: s
           <label className="field span2">
             <span>Note (contexte, besoin, source du contact…)</span>
             <textarea className="input" rows={2} value={f.note} onChange={set("note")} />
-          </label>
-          <label className="switch span2">
-            <input type="checkbox" checked={contrat} onChange={(e) => setContrat(e.target.checked)} />
-            Sous contrat d'entretien
           </label>
         </div>
 

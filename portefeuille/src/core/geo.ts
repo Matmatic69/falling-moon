@@ -111,6 +111,11 @@ export function locate(id: string, cpRaw: string, villeRaw: string): Position | 
 }
 
 /** Libellé de ville propre (« LYON CEDEX 06 » → « Lyon »), via la table La Poste quand c'est possible. */
+/** Ville pour les regroupements : Lyon tous arrondissements confondus, sans CEDEX. */
+export function cityKey(cp: string, ville: string): string {
+  return cp.startsWith("690") && /^LYON/i.test(ville) ? "LYON" : ville.replace(/\s*CEDEX.*$/i, "").toUpperCase();
+}
+
 export function cleanCity(cp: string, ville: string): string {
   const v = norm(ville).replace(/\s*CEDEX\s*\d*$/, "");
   return v || (GEO.cp[cp]?.[2] ?? "");

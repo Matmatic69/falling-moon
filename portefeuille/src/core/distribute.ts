@@ -1,4 +1,4 @@
-import { accountOf, activeClients, buildAccounts, weightFn } from "./accounts";
+import { activeClients, buildAccounts } from "./accounts";
 import { computeRoles, type AddressRole } from "./roles";
 import { norm } from "./normalize";
 import { SEGMENTS } from "./segments";
@@ -19,21 +19,19 @@ export const REASON_LABEL: Record<Reason, string> = {
 
 export interface MemberStats {
   id: string;
+  /** Comptes dont la personne tient au moins une fiche. */
   comptes: number;
-  /** Lieux d'intervention (hors adresses de facturation). */
-  sites: number;
-  /** Fiches ERP, adresses de facturation comprises. */
-  clients: number;
-  contrats: number;
-  score: number;
-  parSegment: Record<SegmentId, { clients: number; score: number }>;
+  /** Ses comptes, par typologie du compte. */
+  parSegment: Record<SegmentId, number>;
 }
 
 export interface Proposal {
   owners: Record<string, string>;
   reasons: Record<string, Reason>;
   stats: MemberStats[];
-  /** Écart max entre commerciaux qui se partagent le pool (en % du score moyen). */
+  /** Écart entre commerciaux qui se partagent le pool, en nombre de comptes (à part égale). */
+  ecartComptes: number;
+  /** Le même écart, en % du nombre moyen de comptes. */
   ecart: number;
 }
 
@@ -52,17 +50,18 @@ const LYON: [number, number] = [45.758, 4.835];
  *  1. le responsable garde ses codes (18) et les choix manuels sont respectés ;
  *  2. un compte (payeur + sites) n'est jamais coupé : ses fiches libres rejoignent
  *     la personne qui en tient déjà une partie ;
- *  3. les plus gros comptes du pool sont réservés au responsable ;
- *  4. le reste est partagé entre les commerciaux, équilibré typologie par
- *     typologie (ou par secteurs géographiques), du plus gros au plus petit.
+ *  3. les plus gros comptes du pool (le plus de sites) sont réservés au responsable ;
+ *  4. le reste est partagé entre les commerciaux en nombre de comptes : autant de
+ *     comptes de chaque typologie pour chacun (ou des secteurs géographiques
+ *     d'autant de comptes).
  */
 export function propose(state: PortfolioState, accounts?: Map<string, Account>): Proposal {
   const { team, settings } = state;
   const active = activeClients(state.clients, state.merges);
   const roles = computeRoles(active, state.merges, settings.zone, state.siteUnique);
-  const accts = accounts ?? buildAccounts(state.clients, state.merges, settings.poidsContrat, settings.zone, roles);
+  const accts = accounts ?? buildAccounts(state.clients, state.merges, settings.zone, roles);
   const clients = new Map(active.map((c) => [c.id, c]));
-  const weight = weightFn(roles, settings.poidsContrat);
+  const isSite = (c: Client) => (roles.get(c.id) === "site" ? 1 : 0);
   const owners: Record<string, string> = {};
   const reasons: Record<string, Reason> = {};
   const responsable = team.find((m) => m.responsable);
@@ -81,7 +80,7 @@ export function propose(state: PortfolioState, accounts?: Map<string, Account>):
       }
       if (f) {
         owners[id] = f.owner;
-        fixedScore.set(f.owner, (fixedScore.get(f.owner) ?? 0) + weight(c));
+        fixedScore.set(f.owner, (fixedScore.get(f.owner) ?? 0) + 1);
         if (!reasons[a.id] || f.reason === "manuel") reasons[a.id] = f.reason;
       } else free.push(c);
     }
@@ -95,7 +94,7 @@ export function propose(state: PortfolioState, accounts?: Map<string, Account>):
     if (fixedScore.size) {
       // Compte coupé volontairement : les fiches libres restent à répartir, on ne partage que la partie libre.
       const siteIds = free.filter((c) => roles.get(c.id) === "site").map((c) => c.id);
-      const part: Account = { ...a, clientIds: free.map((c) => c.id), siteIds, sites: siteIds.length, score: Math.max(1, free.reduce((s, c) => s + weight(c), 0)) };
+      const part: Account = { ...a, clientIds: free.map((c) => c.id), siteIds, sites: siteIds.length, score: Math.max(1, free.reduce((s, c) => s + isSite(c), 0)) };
       pool.push(part);
       return;
     }
@@ -115,15 +114,22 @@ export function propose(state: PortfolioState, accounts?: Map<string, Account>):
 
   if (receivers.length) {
     if (settings.mode === "territoire") splitByTerritory(rest, receivers, owners, reasons);
-    else splitBySegment(rest, receivers, owners, reasons, accts, clients, settings.proximite, weight, roles);
+    else splitBySegment(rest, receivers, owners, reasons, accts, clients, settings.proximite, roles);
   } else rest.forEach((a) => (reasons[a.id] = "pool"));
 
-  const stats = memberStats(team, owners, clients, accts, weight, roles);
-  const recv = stats.filter((s) => receivers.some((r) => r.id === s.id));
-  const norms = recv.map((s) => s.score / receivers.find((r) => r.id === s.id)!.part);
-  const mean = norms.reduce((s, v) => s + v, 0) / (norms.length || 1);
-  const ecart = norms.length > 1 && mean ? (Math.max(...norms) - Math.min(...norms)) / mean : 0;
-  return { owners, reasons, stats, ecart };
+  const stats = memberStats(team, owners, accts);
+  return { owners, reasons, stats, ...ecartOf(stats, receivers) };
+}
+
+/** Écart de nombre de comptes entre commerciaux, ramené à une part égale. */
+export function ecartOf(stats: MemberStats[], receivers: Member[]): { ecartComptes: number; ecart: number } {
+  const parts = receivers.map((r) => ({ r, s: stats.find((s) => s.id === r.id) })).filter((x) => x.s);
+  if (parts.length < 2) return { ecartComptes: 0, ecart: 0 };
+  const mean = parts.reduce((s, x) => s + x.r.part, 0) / parts.length;
+  const norms = parts.map((x) => (x.s!.comptes / x.r.part) * mean);
+  const avg = norms.reduce((s, v) => s + v, 0) / norms.length;
+  const ecartComptes = Math.round(Math.max(...norms) - Math.min(...norms));
+  return { ecartComptes, ecart: avg ? ecartComptes / avg : 0 };
 }
 
 function splitBySegment(
@@ -134,11 +140,12 @@ function splitBySegment(
   accts: Map<string, Account>,
   clients: Map<string, Client>,
   proximite: boolean,
-  weight: (c: Client) => number,
   roles: Map<string, AddressRole>,
 ) {
+  // Tout se compte en comptes : par typologie, au total, plus la taille (sites) pour alterner les gros.
   const segLoad = new Map<string, Map<SegmentId, number>>(receivers.map((m) => [m.id, new Map()]));
   const total = new Map<string, number>(receivers.map((m) => [m.id, 0]));
+  const size = new Map<string, number>(receivers.map((m) => [m.id, 0]));
   const presence = new Map<string, Map<string, number>>(receivers.map((m) => [m.id, new Map()]));
   // Proximité : uniquement les lieux d'intervention (une adresse de siège ne dit rien du terrain).
   const place = (c: Client) => (roles.get(c.id) !== "site" ? "" : c.cp ? c.cp : norm(c.ville));
@@ -146,52 +153,61 @@ function splitBySegment(
     const k = place(c);
     if (k) presence.get(m)!.set(k, (presence.get(m)!.get(k) ?? 0) + 1);
   };
+  const add = (m: string, a: Account) => {
+    segLoad.get(m)!.set(a.segment, (segLoad.get(m)!.get(a.segment) ?? 0) + 1);
+    total.set(m, total.get(m)! + 1);
+    size.set(m, size.get(m)! + a.score);
+  };
 
-  // Charge de départ : ce que chaque commercial tient déjà (codes ERP, choix manuels).
-  accts.forEach((a) =>
+  // Charge de départ : les comptes que chaque commercial tient déjà (choix manuels).
+  accts.forEach((a) => {
+    const held = new Set<string>();
     a.clientIds.forEach((id) => {
       const o = owners[id];
       if (!o || !segLoad.has(o)) return;
-      const c = clients.get(id)!;
-      const w = weight(c);
-      segLoad.get(o)!.set(c.segment, (segLoad.get(o)!.get(c.segment) ?? 0) + w);
-      total.set(o, total.get(o)! + w);
-      addPresence(o, c);
-    }),
-  );
+      held.add(o);
+      addPresence(o, clients.get(id)!);
+    });
+    held.forEach((o) => add(o, a));
+  });
 
-  const partSum = receivers.reduce((s, m) => s + m.part, 0);
   const bySeg = new Map<SegmentId, Account[]>();
   pool.forEach((a) => bySeg.set(a.segment, [...(bySeg.get(a.segment) ?? []), a]));
-  const order = [...bySeg].sort((x, y) => y[1].reduce((s, a) => s + a.score, 0) - x[1].reduce((s, a) => s + a.score, 0));
+  const order = [...bySeg].sort((x, y) => y[1].length - x[1].length);
+  const eps = 1e-9;
 
   for (const [seg, list] of order) {
-    const segTotal = list.reduce((s, a) => s + a.score, 0);
-    // Marge où la proximité peut départager : 1 % de la part de chacun dans la typologie.
-    const slack = Math.max(1, (0.01 * segTotal) / partSum);
-    for (const a of list) {
+    list.forEach((a, i) => {
+      // 1. Celui qui a le moins de comptes de cette typologie (à part égale).
       const load = (m: Member) => (segLoad.get(m.id)!.get(seg) ?? 0) / m.part;
       const min = Math.min(...receivers.map(load));
-      let candidates = receivers.filter((m) => load(m) - min <= (proximite ? slack / m.part : 0));
+      let candidates = receivers.filter((m) => load(m) - min < eps);
+      // 2. Dernier compte impair de la typologie : il va à celui qui a le moins de comptes au total.
+      if (list.length - i < candidates.length) {
+        const tot = (m: Member) => total.get(m.id)! / m.part;
+        const tmin = Math.min(...candidates.map(tot));
+        candidates = candidates.filter((m) => tot(m) - tmin < eps);
+      }
+      // 3. Proximité : celui qui est déjà présent dans les mêmes villes.
       if (proximite && candidates.length > 1) {
         const places = new Set(a.clientIds.map((id) => place(clients.get(id)!)).filter(Boolean));
         const affinity = (m: Member) => [...places].reduce((s, p) => s + (presence.get(m.id)!.get(p) ?? 0), 0);
         const best = Math.max(...candidates.map(affinity));
         if (best > 0) candidates = candidates.filter((m) => affinity(m) === best);
       }
-      const chosen = candidates.sort((x, y) => load(x) - load(y) || total.get(x.id)! / x.part - total.get(y.id)! / y.part)[0];
+      // 4. Sinon celui qui a les plus petits comptes : les gros sont alternés.
+      const chosen = candidates.sort((x, y) => size.get(x.id)! / x.part - size.get(y.id)! / y.part || total.get(x.id)! / x.part - total.get(y.id)! / y.part)[0];
       a.clientIds.forEach((id) => {
         owners[id] = chosen.id;
         addPresence(chosen.id, clients.get(id)!);
       });
-      segLoad.get(chosen.id)!.set(seg, (segLoad.get(chosen.id)!.get(seg) ?? 0) + a.score);
-      total.set(chosen.id, total.get(chosen.id)! + a.score);
+      add(chosen.id, a);
       reasons[a.id] = "equilibre";
-    }
+    });
   }
 }
 
-/** Secteurs en « parts de camembert » autour de Lyon, de score égal, orientés pour équilibrer aussi les typologies. */
+/** Secteurs en « parts de camembert » autour de Lyon, d'autant de comptes chacun, orientés pour équilibrer aussi les typologies. */
 function splitByTerritory(pool: Account[], receivers: Member[], owners: Record<string, string>, reasons: Record<string, Reason>) {
   if (!pool.length) return;
   const angle = (a: Account) =>
@@ -199,10 +215,10 @@ function splitByTerritory(pool: Account[], receivers: Member[], owners: Record<s
       ? 0
       : (Math.atan2(a.lat - LYON[0], (a.lng - LYON[1]) * Math.cos((LYON[0] * Math.PI) / 180)) + 2 * Math.PI) % (2 * Math.PI);
   const sorted = [...pool].sort((x, y) => angle(x) - angle(y));
-  const totalScore = sorted.reduce((s, a) => s + a.score, 0);
+  const totalScore = sorted.length;
   const partSum = receivers.reduce((s, m) => s + m.part, 0);
   const segTotals = new Map<SegmentId, number>();
-  sorted.forEach((a) => segTotals.set(a.segment, (segTotals.get(a.segment) ?? 0) + a.score));
+  sorted.forEach((a) => segTotals.set(a.segment, (segTotals.get(a.segment) ?? 0) + 1));
 
   let best: { cost: number; assign: number[] } | null = null;
   for (let shift = 0; shift < sorted.length; shift += Math.max(1, Math.floor(sorted.length / 72))) {
@@ -212,13 +228,12 @@ function splitByTerritory(pool: Account[], receivers: Member[], owners: Record<s
     let bound = (totalScore * receivers[0].part) / partSum;
     for (let i = 0; i < sorted.length; i++) {
       const idx = (i + shift) % sorted.length;
-      const s = sorted[idx].score;
-      if (k < receivers.length - 1 && acc + s / 2 > bound) {
+      if (k < receivers.length - 1 && acc + 0.5 > bound) {
         k++;
         bound += (totalScore * receivers[k].part) / partSum;
       }
       assign[idx] = k;
-      acc += s;
+      acc += 1;
     }
     let cost = 0;
     receivers.forEach((m, r) => {
@@ -227,8 +242,8 @@ function splitByTerritory(pool: Account[], receivers: Member[], owners: Record<s
       let tot = 0;
       sorted.forEach((a, i) => {
         if (assign[i] !== r) return;
-        got.set(a.segment, (got.get(a.segment) ?? 0) + a.score);
-        tot += a.score;
+        got.set(a.segment, (got.get(a.segment) ?? 0) + 1);
+        tot += 1;
       });
       cost += 3 * Math.abs(tot - totalScore * share);
       segTotals.forEach((t, seg) => (cost += Math.abs((got.get(seg) ?? 0) - t * share)));
@@ -242,34 +257,18 @@ function splitByTerritory(pool: Account[], receivers: Member[], owners: Record<s
   });
 }
 
-export function memberStats(
-  team: Member[],
-  owners: Record<string, string>,
-  clients: Map<string, Client>,
-  accts: Map<string, Account>,
-  weight: (c: Client) => number,
-  roles: Map<string, AddressRole>,
-): MemberStats[] {
-  const empty = () => Object.fromEntries(SEGMENTS.map((s) => [s.id, { clients: 0, score: 0 }])) as MemberStats["parSegment"];
-  const stats = new Map(team.map((m) => [m.id, { id: m.id, comptes: 0, sites: 0, clients: 0, contrats: 0, score: 0, parSegment: empty() }]));
-  const acctOf = accountOf(accts);
-  const counted = new Set<string>();
-  clients.forEach((c) => {
-    const o = owners[c.id];
-    const s = o ? stats.get(o) : undefined;
-    if (!s) return;
-    const w = weight(c);
-    s.clients++;
-    if (roles.get(c.id) === "site") s.sites++;
-    s.score += w;
-    if (c.contrat) s.contrats++;
-    if (roles.get(c.id) === "site") s.parSegment[c.segment].clients++;
-    s.parSegment[c.segment].score += w;
-    const k = `${o}|${acctOf.get(c.id)}`;
-    if (!counted.has(k)) {
-      counted.add(k);
+/** Comptes de chacun : un compte compte pour chaque personne qui en tient au moins une fiche. */
+export function memberStats(team: Member[], owners: Record<string, string>, accts: Map<string, Account>): MemberStats[] {
+  const empty = () => Object.fromEntries(SEGMENTS.map((s) => [s.id, 0])) as MemberStats["parSegment"];
+  const stats = new Map(team.map((m) => [m.id, { id: m.id, comptes: 0, parSegment: empty() }]));
+  accts.forEach((a) => {
+    const held = new Set(a.clientIds.map((id) => owners[id]).filter(Boolean));
+    held.forEach((o) => {
+      const s = stats.get(o);
+      if (!s) return;
       s.comptes++;
-    }
+      s.parSegment[a.segment]++;
+    });
   });
-  return [...stats.values()].map((s) => ({ ...s, score: Math.round(s.score * 10) / 10 }));
+  return [...stats.values()];
 }

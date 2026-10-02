@@ -8,7 +8,7 @@ import { Icon } from "./icons";
 import { useStore } from "./store";
 import { fmt, initials, memberVar, useToast, Who } from "./ui";
 
-type Sort = "poids" | "nom" | "ville" | "sites";
+type Sort = "taille" | "nom" | "ville";
 
 export interface TableFilter {
   /** Restreint aux comptes ayant au moins une fiche de ce propriétaire ("" = pool). */
@@ -42,7 +42,7 @@ export function AccountTable({
   const [q, setQ] = useState("");
   const [segment, setSegment] = useState<SegmentId | "">("");
   const [dept, setDept] = useState("");
-  const [sort, setSort] = useState<Sort>("poids");
+  const [sort, setSort] = useState<Sort>("taille");
   const [limit, setLimit] = useState(60);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
@@ -70,7 +70,7 @@ export function AccountTable({
       return true;
     });
     list = [...list].sort((x, y) =>
-      sort === "nom" ? x.nom.localeCompare(y.nom) : sort === "ville" ? x.ville.localeCompare(y.ville) : sort === "sites" ? y.sites - x.sites : y.score - x.score,
+      sort === "nom" ? x.nom.localeCompare(y.nom) : sort === "ville" ? x.ville.localeCompare(y.ville) : y.score - x.score || x.nom.localeCompare(y.nom),
     );
     return list;
   }, [accounts, q, segment, dept, sort, base?.code]);
@@ -97,7 +97,7 @@ export function AccountTable({
     const list = Array.isArray(a) ? a : [a];
     const ids = list.flatMap((x) => x.clientIds);
     const who = to ? team.find((m) => m.id === to)?.nom : "le pool";
-    actions.assign(ids, to, list.length === 1 ? `« ${list[0].nom} » (${list[0].sites} fiche(s)) → ${who}` : `${list.length} comptes → ${who}`);
+    actions.assign(ids, to, list.length === 1 ? `« ${list[0].nom} » → ${who}` : `${list.length} comptes → ${who}`);
     toast(list.length === 1 ? `${list[0].nom} → ${who}` : `${list.length} comptes attribués à ${who}`);
   };
 
@@ -147,8 +147,7 @@ export function AccountTable({
           ))}
         </select>
         <select className="select" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Tri">
-          <option value="poids">Plus gros d'abord</option>
-          <option value="sites">Plus de sites</option>
+          <option value="taille">Plus gros d'abord</option>
           <option value="nom">Nom A→Z</option>
           <option value="ville">Ville A→Z</option>
         </select>
@@ -157,8 +156,7 @@ export function AccountTable({
 
       {isAdmin && selected.size > 0 && (
         <div className="row wrap" style={{ padding: "10px 14px", background: "var(--surface-2)", borderBottom: "1px solid var(--line)" }}>
-          <b>{fmt(selected.size)} sélectionné(s)</b>
-          <span className="muted small">({fmt(selAccounts.reduce((s, a) => s + a.sites, 0))} fiches)</span>
+          <b>{fmt(selected.size)} compte(s) sélectionné(s)</b>
           <span className="spacer" />
           {team.map((m) => (
             <button key={m.id} className="btn sm" onClick={() => (assign(selAccounts, m.id), setSelected(new Set()))}>
@@ -220,8 +218,6 @@ export function AccountTable({
                 <th>Compte</th>
                 <th className="hide-mobile">Typologie</th>
                 <th className="r">Sites</th>
-                <th className="r hide-mobile">Contrats</th>
-                <th className="r">Poids</th>
                 <th>{proposed ? "Proposé" : "Propriétaire"}</th>
                 {isAdmin && <th className="hide-mobile">Attribuer</th>}
               </tr>
@@ -267,8 +263,6 @@ export function AccountTable({
                         {fmt(a.sites)}
                         {(state.siteUnique ?? []).includes(a.id) && <div className="small muted">{fmt(a.clientIds.length - 1)} adr. regroupées</div>}
                       </td>
-                      <td className="r num hide-mobile">{a.contrats ? fmt(a.contrats) : <span className="muted">–</span>}</td>
-                      <td className="r num">{fmt(a.score)}</td>
                       <td>
                         <div className="row" style={{ gap: 4 }}>
                           {[...(prop ?? new Set(cur.keys()))].map((o) => (
@@ -298,8 +292,6 @@ export function AccountTable({
                             </td>
                             <td className="hide-mobile dim small">{SEGMENTS.find((s) => s.id === c.segment)?.court}</td>
                             <td className="r small muted">{d.roles.get(id) === "site" ? "site" : "facturation"}</td>
-                            <td className="r hide-mobile">{c.contrat ? <Icon name="check" size={14} /> : null}</td>
-                            <td />
                             <td>
                               <Who team={team} id={o} />
                             </td>

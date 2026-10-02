@@ -4,7 +4,7 @@ import { SEGMENTS } from "../../core/segments";
 import type { Client, SegmentId } from "../../core/types";
 import { Icon } from "../icons";
 import { useStore } from "../store";
-import { colorOf, fmt, memberVar, pct, Switch, Tooltip, useTheme } from "../ui";
+import { colorOf, fmt, memberVar, pct, plural, Switch, Tooltip, useTheme } from "../ui";
 
 const LAT0 = 45.76;
 const K = Math.cos((LAT0 * Math.PI) / 180);
@@ -23,7 +23,9 @@ interface Cluster {
   x: number;
   y: number;
   pts: Pt[];
-  byOwner: Map<string, number>;
+  /** Comptes distincts du regroupement, et par propriétaire (plusieurs sites proches d'un compte n'en font qu'un). */
+  accts: Set<string>;
+  byOwner: Map<string, Set<string>>;
 }
 
 /** Contours pré-calculés (coordonnées projetées), dessinés à l'échelle de la caméra. */
@@ -59,7 +61,6 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
   const allOwners = [...team.map((m) => m.id), POOL];
   const [show, setShow] = useState<Set<string>>(() => new Set(initialOwner ? [initialOwner] : allOwners));
   const [segment, setSegment] = useState<SegmentId | "">("");
-  const [contrat, setContrat] = useState(false);
   const [facturation, setFacturation] = useState(false);
   const [tip, setTip] = useState<{ x: number; y: number; html: ReactNode } | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
@@ -75,15 +76,22 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
       (facturation ? d.active : d.sites)
         .filter((c) => c.lat !== undefined && c.lng !== undefined)
         .map((c) => ({ c, x: px(c.lng!), y: py(c.lat!), o: owner(c.id) ?? POOL }))
-        .filter((p) => show.has(p.o) && (!segment || p.c.segment === segment) && (!contrat || p.c.contrat)),
-    [d.active, d.sites, facturation, owner, show, segment, contrat],
+        .filter((p) => show.has(p.o) && (!segment || p.c.segment === segment)),
+    [d.active, d.sites, facturation, owner, show, segment],
   );
 
-  const counts = useMemo(() => {
+  // Comptes visibles, par propriétaire (un compte a souvent plusieurs points sur la carte).
+  const { counts, comptes } = useMemo(() => {
+    const seen = new Set<string>();
     const m = new Map<string, number>();
-    points.forEach((p) => m.set(p.o, (m.get(p.o) ?? 0) + 1));
-    return m;
-  }, [points]);
+    points.forEach((p) => {
+      const k = `${p.o}|${d.acctOf.get(p.c.id) ?? p.c.id}`;
+      if (seen.has(k)) return;
+      seen.add(k);
+      m.set(p.o, (m.get(p.o) ?? 0) + 1);
+    });
+    return { counts: m, comptes: new Set(points.map((p) => d.acctOf.get(p.c.id) ?? p.c.id)).size };
+  }, [points, d.acctOf]);
 
   // Cadrage initial : là où sont 95 % des clients.
   const fit = () => {
@@ -157,21 +165,22 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
         const x = p.x * s + tx, y = p.y * s + ty;
         if (x < -40 || x > W + 40 || y < -40 || y > H + 40) continue;
         const k = `${Math.floor(x / cell)}:${Math.floor(y / cell)}`;
-        const g: Cluster = grid.get(k) ?? { x: 0, y: 0, pts: [], byOwner: new Map() };
+        const g: Cluster = grid.get(k) ?? { x: 0, y: 0, pts: [], accts: new Set(), byOwner: new Map() };
+        const a = d.acctOf.get(p.c.id) ?? p.c.id;
         g.x += x;
         g.y += y;
         g.pts.push(p);
-        g.byOwner.set(p.o, (g.byOwner.get(p.o) ?? 0) + 1);
+        g.accts.add(a);
+        g.byOwner.set(p.o, (g.byOwner.get(p.o) ?? new Set()).add(a));
         grid.set(k, g);
       }
       const list = [...grid.values()].map((g) => ({ ...g, x: g.x / g.pts.length, y: g.y / g.pts.length }));
-      list.sort((a, b) => a.pts.length - b.pts.length);
+      list.sort((a, b) => a.accts.size - b.accts.size);
       clusters.current = list;
       for (const g of list) {
-        const n = g.pts.length;
-        if (n === 1) {
+        if (g.pts.length === 1) {
           const p = g.pts[0];
-          const r = p.c.contrat ? 5 : 4;
+          const r = 4;
           ctx.beginPath();
           ctx.arc(g.x, g.y, r + 2, 0, Math.PI * 2);
           ctx.fillStyle = th.surface;
@@ -189,6 +198,8 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
           }
           continue;
         }
+        const n = g.accts.size;
+        const parts = [...g.byOwner.values()].reduce((t, v) => t + v.size, 0);
         const r = Math.min(30, 7 + Math.sqrt(n) * 2.1);
         ctx.beginPath();
         ctx.arc(g.x, g.y, r + 2, 0, Math.PI * 2);
@@ -196,9 +207,9 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
         ctx.fill();
         let a0 = -Math.PI / 2;
         for (const o of allOwners) {
-          const v = g.byOwner.get(o);
+          const v = g.byOwner.get(o)?.size;
           if (!v) continue;
-          const a1 = a0 + (v / n) * Math.PI * 2;
+          const a1 = a0 + (v / parts) * Math.PI * 2;
           ctx.beginPath();
           ctx.moveTo(g.x, g.y);
           ctx.arc(g.x, g.y, r, a0, a1);
@@ -255,7 +266,7 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
       let best: Cluster | null = null;
       let bd = Infinity;
       for (const g of clusters.current) {
-        const r = g.pts.length === 1 ? 8 : Math.min(30, 7 + Math.sqrt(g.pts.length) * 2.1) + 3;
+        const r = g.pts.length === 1 ? 8 : Math.min(30, 7 + Math.sqrt(g.accts.size) * 2.1) + 3;
         const dd = Math.hypot(g.x - x, g.y - y);
         if (dd < r && dd < bd) {
           bd = dd;
@@ -315,7 +326,6 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
               <b>{c.nom || "Client confidentiel"}</b>
               <div className="dim">
                 {c.ville} · {SEGMENTS.find((s) => s.id === c.segment)?.court}
-                {c.contrat ? " · sous contrat" : ""}
                 {!d.isSite(c.id) ? " · adresse de facturation" : ""}
               </div>
               <div className="row small" style={{ gap: 6, marginTop: 4 }}>
@@ -326,18 +336,19 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
           ),
         });
       } else {
+        const { byOwner, accts } = g;
         setTip({
           x: e.clientX,
           y: e.clientY,
           html: (
             <>
-              <b>{fmt(g.pts.length)} clients ici</b>
+              <b>{plural(accts.size, "compte", "comptes")} ici</b>
               {allOwners.map((o) =>
-                g.byOwner.get(o) ? (
+                byOwner.get(o) ? (
                   <div key={o || "p"} className="row small" style={{ gap: 6 }}>
                     <i style={{ width: 8, height: 8, borderRadius: 4, background: memberVar(team, o || undefined) }} />
                     <span className="grow">{o ? team.find((m) => m.id === o)?.nom : "À répartir"}</span>
-                    <span className="num">{fmt(g.byOwner.get(o)!)}</span>
+                    <span className="num">{fmt(byOwner.get(o)!.size)}</span>
                   </div>
                 ) : null,
               )}
@@ -412,7 +423,7 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
       <div className="page-head">
         <div className="grow">
           <h1>Carte des clients</h1>
-          <p>Lieux d'intervention uniquement (pas les sièges) · couleur = propriétaire · les anneaux regroupent les sites proches : cliquez pour zoomer</p>
+          <p>Chaque point est un lieu d'intervention d'un compte (pas les sièges) · couleur = propriétaire · les anneaux regroupent les points proches : cliquez pour zoomer</p>
         </div>
       </div>
       <div className="row wrap" style={{ marginBottom: 12 }}>
@@ -431,7 +442,6 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
             </option>
           ))}
         </select>
-        <Switch checked={contrat} onChange={setContrat} label="Sous contrat seulement" />
         <Switch checked={facturation} onChange={setFacturation} label={`Afficher aussi les ${fmt(billing)} adresses de facturation`} />
       </div>
       <div className="map-wrap" ref={wrap}>
@@ -448,20 +458,18 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
           </button>
         </div>
         <div className="map-panel">
-          <b>
-            {fmt(points.length)} {facturation ? "adresses" : "sites d'intervention"}
-          </b>
+          <b>{plural(comptes, "compte", "comptes")}</b>
           <div className="legend" style={{ marginTop: 6, flexDirection: "column", gap: 4 }}>
             {allOwners
               .filter((o) => show.has(o))
               .map((o) => (
                 <span key={o || "p"}>
                   <i style={{ background: memberVar(team, o || undefined), borderRadius: 5 }} />
-                  {o ? team.find((m) => m.id === o)?.nom : "À répartir"} · {pct((counts.get(o) ?? 0) / Math.max(1, points.length))}
+                  {o ? team.find((m) => m.id === o)?.nom : "À répartir"} · {pct((counts.get(o) ?? 0) / Math.max(1, comptes))}
                 </span>
               ))}
           </div>
-          {missing > 0 && <div className="muted" style={{ marginTop: 6 }}>{fmt(missing)} sans adresse localisable</div>}
+          {missing > 0 && <div className="muted" style={{ marginTop: 6 }}>{fmt(missing)} adresse(s) non localisable(s)</div>}
         </div>
       </div>
       <Tooltip at={tip}>{tip?.html}</Tooltip>

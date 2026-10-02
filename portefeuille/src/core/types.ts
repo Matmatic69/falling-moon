@@ -69,8 +69,6 @@ export interface Member {
 }
 
 export interface Settings {
-  /** Poids d'un site sous contrat d'entretien dans le score d'un compte. */
-  poidsContrat: number;
   /** Les sites d'un compte déjà tenu par quelqu'un le rejoignent. */
   rattacherComptes: boolean;
   /** Nombre de plus gros comptes du pool réservés au responsable. */
@@ -156,7 +154,7 @@ export interface Account {
   /** Fiches qui sont des lieux d'intervention (hors adresses de facturation). */
   siteIds: string[];
   sites: number;
-  contrats: number;
+  /** Taille du compte : nombre de sites d'intervention (au moins 1). Sert à repérer les plus gros comptes. */
   score: number;
   segment: SegmentId;
   ville: string;

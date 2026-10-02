@@ -12,11 +12,6 @@ export function resolveMerge(id: string, merges: Record<string, string>): string
   return cur;
 }
 
-/** Poids d'une fiche : 1 si c'est un lieu d'intervention, plus un bonus par contrat d'entretien. */
-export function weightFn(roles: Map<string, AddressRole>, poidsContrat: number): (c: Client) => number {
-  return (c) => (roles.get(c.id) === "site" ? 1 : 0) + (c.contrat ? poidsContrat : 0);
-}
-
 /**
  * Regroupe les fiches en comptes : un payeur et tous ses sites.
  * Un site dont le payeur n'est pas dans le fichier forme son propre compte.
@@ -25,14 +20,12 @@ export function weightFn(roles: Map<string, AddressRole>, poidsContrat: number):
 export function buildAccounts(
   clients: Client[],
   merges: Record<string, string>,
-  poidsContrat: number,
   zone?: string[],
   rolesIn?: Map<string, AddressRole>,
   siteUnique?: string[],
 ): Map<string, Account> {
   const active = activeClients(clients, merges);
   const roles = rolesIn ?? computeRoles(active, merges, zone, siteUnique);
-  const weight = weightFn(roles, poidsContrat);
   const ids = new Set(active.map((c) => c.id));
   const accounts = new Map<string, Account>();
   const segCount = new Map<string, Map<SegmentId, number>>();
@@ -42,7 +35,7 @@ export function buildAccounts(
     const key = payeur && ids.has(payeur) ? payeur : c.id;
     let a = accounts.get(key);
     if (!a) {
-      a = { id: key, nom: "", clientIds: [], siteIds: [], sites: 0, contrats: 0, score: 0, segment: "autre", ville: "", cp: "", codes: [] };
+      a = { id: key, nom: "", clientIds: [], siteIds: [], sites: 0, score: 0, segment: "autre", ville: "", cp: "", codes: [] };
       accounts.set(key, a);
     }
     a.clientIds.push(c.id);
@@ -50,8 +43,6 @@ export function buildAccounts(
       a.siteIds.push(c.id);
       a.sites++;
     }
-    if (c.contrat) a.contrats++;
-    a.score += weight(c);
     if (!a.codes.includes(c.code)) a.codes.push(c.code);
     const sc = segCount.get(key) ?? new Map<SegmentId, number>();
     sc.set(c.segment, (sc.get(c.segment) ?? 0) + 1);
@@ -90,8 +81,8 @@ export function buildAccounts(
       a.lat = lat / n;
       a.lng = lng / n;
     }
-    // Un client sans site connu pèse quand même : c'est un compte à suivre.
-    a.score = Math.max(1, Math.round(a.score * 10) / 10);
+    // Taille : ses sites d'intervention ; un client sans site connu compte quand même pour un.
+    a.score = Math.max(1, a.sites);
   });
   return accounts;
 }
@@ -101,4 +92,25 @@ export function accountOf(accounts: Map<string, Account>): Map<string, string> {
   const m = new Map<string, string>();
   accounts.forEach((a) => a.clientIds.forEach((id) => m.set(id, a.id)));
   return m;
+}
+
+/** Propriétaire principal d'un compte : celui qui en tient le plus de fiches, le payeur départage ; "" = à répartir. */
+export function mainOwner(a: Account, owner: (id: string) => string | undefined): string {
+  const n = new Map<string, number>();
+  a.clientIds.forEach((id) => {
+    const o = owner(id) ?? "";
+    n.set(o, (n.get(o) ?? 0) + 1);
+  });
+  const head = owner(a.id) ?? "";
+  return [...n].sort((x, y) => y[1] - x[1] || Number(y[0] === head) - Number(x[0] === head))[0]?.[0] ?? "";
+}
+
+/** Valeur la plus fréquente parmi les sites d'un compte (département, ville…), à défaut celle du payeur. */
+export function mainOf(a: Account, byId: Map<string, Client>, key: (c: Client) => string): string {
+  const n = new Map<string, number>();
+  for (const id of a.siteIds) {
+    const k = key(byId.get(id)!);
+    if (k) n.set(k, (n.get(k) ?? 0) + 1);
+  }
+  return [...n].sort((x, y) => y[1] - x[1])[0]?.[0] ?? "";
 }

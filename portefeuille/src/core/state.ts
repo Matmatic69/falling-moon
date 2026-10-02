@@ -10,7 +10,6 @@ export interface TeamSetup {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  poidsContrat: 2,
   rattacherComptes: true,
   grandsComptes: 10,
   mode: "type",

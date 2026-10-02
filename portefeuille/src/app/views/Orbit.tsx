@@ -5,11 +5,7 @@ import { colorOf, fmt, Tooltip, type Theme } from "../ui";
 export interface OrbitBody {
   id: string;
   nom: string;
-  clients: number;
-  sites: number;
   comptes: number;
-  contrats: number;
-  score: number;
 }
 
 export interface OrbitParticle {
@@ -173,7 +169,7 @@ export function Orbit({
     const place = () => {
       const { bodies: bs, pool: poolN, team: tm } = live.current;
       const narrow = W < 640;
-      const maxScore = Math.max(1, ...bs.map((b) => b.score));
+      const maxComptes = Math.max(1, ...bs.map((b) => b.comptes));
       const base = Math.min(W, H) * (narrow ? 0.14 : 0.135);
       const resp = tm.find((m) => m.responsable)?.id;
       const others = bs.filter((b) => b.id !== resp);
@@ -195,11 +191,11 @@ export function Orbit({
       order.forEach((b, i) => {
         if (!b) return;
         const [sx, sy] = slots[Math.min(i, slots.length - 1)];
-        const R = base * (0.62 + 0.38 * Math.sqrt(b.score / maxScore));
+        const R = base * (0.62 + 0.38 * Math.sqrt(b.comptes / maxComptes));
         layout.current.set(b.id, { x: sx * W, y: sy * H, R });
       });
       if (poolN > 0) {
-        const total = bs.reduce((s, b) => s + b.clients, 0) + poolN;
+        const total = bs.reduce((s, b) => s + b.comptes, 0) + poolN;
         const R = base * (0.32 + 0.4 * Math.sqrt(poolN / Math.max(1, total)));
         layout.current.set(POOL, { x: W * 0.5, y: H * (narrow ? 0.85 : 0.84), R });
       }
@@ -345,13 +341,9 @@ export function Orbit({
           ctx.fillText("à répartir", L.x, L.y + big * 0.55);
         } else if (b) {
           ctx.font = `700 ${big}px system-ui, sans-serif`;
-          ctx.fillText(b.nom, L.x, L.y - big * 0.62);
+          ctx.fillText(b.nom, L.x, L.y - big * 0.4);
           ctx.font = `600 ${big * 0.66}px system-ui, sans-serif`;
-          ctx.fillText(`${fmt(b.comptes)} comptes`, L.x, L.y + big * 0.35);
-          ctx.font = `500 ${big * 0.5}px system-ui, sans-serif`;
-          ctx.globalAlpha = 0.85;
-          if (R > 52) ctx.fillText(`${fmt(b.sites)} sites · ${fmt(b.contrats)} contrats`, L.x, L.y + big * 1.05);
-          ctx.globalAlpha = 1;
+          ctx.fillText(`${fmt(b.comptes)} comptes`, L.x, L.y + big * 0.55);
         }
       });
 
@@ -392,7 +384,7 @@ export function Orbit({
         setTip(
           hit.id === POOL
             ? { x: ev.clientX, y: ev.clientY, title: `${fmt(live.current.pool)} comptes à répartir`, sub: "Cliquez pour les voir" }
-            : { x: ev.clientX, y: ev.clientY, title: b?.nom ?? "", sub: `Score ${fmt(b?.score ?? 0)} · cliquez pour ouvrir le portefeuille` },
+            : { x: ev.clientX, y: ev.clientY, title: b?.nom ?? "", sub: `${fmt(b?.comptes ?? 0)} comptes · cliquez pour ouvrir le portefeuille` },
         );
       } else setTip(null);
     };
@@ -423,7 +415,7 @@ export function Orbit({
     <div className="orbit-wrap" ref={wrapRef}>
       <canvas ref={canvasRef} aria-label="Répartition du portefeuille : une bulle par personne, ses comptes en orbite" role="img" />
       <div className="orbit-legend">
-        <span className="hide-mobile">Taille des bulles : poids du portefeuille (sites + contrats)</span>
+        <span className="hide-mobile">Taille des bulles : nombre de comptes</span>
         <span className="spacer" />
         <span className="hide-mobile">Cliquez une bulle ou un client</span>
       </div>

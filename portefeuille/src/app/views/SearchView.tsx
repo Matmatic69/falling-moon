@@ -22,7 +22,6 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
   const [dept, setDept] = useState("");
   const [code, setCode] = useState("");
   const [type, setType] = useState<"" | "facturation" | "site">("site");
-  const [contrat, setContrat] = useState<"" | "oui" | "non">("");
   const [origine, setOrigine] = useState<"" | "erp" | "ajout">("");
   const [sort, setSort] = useState<Sort>("pertinence");
   const [limit, setLimit] = useState(100);
@@ -51,8 +50,6 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
       if (code && c.code !== code) return false;
       if (type === "facturation" && d.isSite(c.id)) return false;
       if (type === "site" && !d.isSite(c.id)) return false;
-      if (contrat === "oui" && !c.contrat) return false;
-      if (contrat === "non" && c.contrat) return false;
       if (origine === "erp" && c.ajout) return false;
       if (origine === "ajout" && !c.ajout) return false;
       return true;
@@ -63,7 +60,7 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
     else if (sort === "proprio") list.sort((a, b) => name(owner(a.c.id)).localeCompare(name(owner(b.c.id))));
     else if (!q.trim()) list.sort((a, b) => a.c.nom.localeCompare(b.c.nom));
     return list;
-  }, [q, d.index, d.active, owners, segment, dept, code, type, contrat, origine, sort, owner, team]);
+  }, [q, d.index, d.active, owners, segment, dept, code, type, origine, sort, owner, team]);
 
   const top = q.trim() && results[0];
   const toggle = (o: string) =>
@@ -152,11 +149,6 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
             <option value="facturation">Adresses de facturation</option>
             <option value="">Sites et facturation</option>
           </select>
-          <select className="select" value={contrat} onChange={(e) => setContrat(e.target.value as typeof contrat)} aria-label="Contrat">
-            <option value="">Avec ou sans contrat</option>
-            <option value="oui">Sous contrat</option>
-            <option value="non">Sans contrat</option>
-          </select>
           <select className="select" value={origine} onChange={(e) => setOrigine(e.target.value as typeof origine)} aria-label="Origine">
             <option value="">Toutes origines</option>
             <option value="erp">Export ERP</option>
@@ -209,7 +201,6 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
                     </b>
                     <div className="small muted ellipsis">
                       {d.isSite(c.id) ? (c.payeur ? `Site · payeur : ${d.byId.get(c.payeur)?.nom ?? c.payeurNom ?? c.payeur}` : "Site") : "Adresse de facturation"}
-                      {c.contrat ? " · sous contrat" : ""}
                     </div>
                   </td>
                   <td className="hide-mobile dim">{SEGMENT_BY_ID[c.segment].court}</td>

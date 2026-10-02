@@ -18,9 +18,9 @@ dérivée par PBKDF2). Aucune donnée client n'est stockée dans ce dépôt.
 
 | Écran | Rôle |
 |---|---|
-| Accueil | Une bulle animée par personne, ses clients en orbite (taille = poids du portefeuille), la bulle grise des clients à répartir. Clic sur une bulle → son portefeuille ; clic sur un client → sa fiche. |
-| Tableau de bord | Typologies × propriétaire, départements, villes, taux de contrats d'entretien, 15 plus gros comptes, codes ERP d'origine (où sont partis les clients du commercial parti), qualité des données. |
-| Carte | Carte hors-ligne (départements, communes du Rhône) des sites d'intervention, colorés par propriétaire, regroupés en anneaux quand on dézoome ; filtres par personne, typologie, contrat ; adresses de facturation en option. |
+| Accueil | Une bulle animée par personne, ses comptes en orbite (taille = nombre de comptes), la bulle grise des comptes à répartir. Clic sur une bulle → son portefeuille ; clic sur un client → sa fiche. |
+| Tableau de bord | En nombre de comptes : typologies × propriétaire, départements, villes, 15 plus gros comptes, codes ERP d'origine (où sont partis les clients du commercial parti), qualité des données. |
+| Carte | Carte hors-ligne (départements, communes du Rhône) des lieux d'intervention de chaque compte, colorés par propriétaire, regroupés en anneaux quand on dézoome ; filtres par personne et typologie ; adresses de facturation en option. |
 | Recherche (Ctrl + K) | « À qui appartient ce client ? » : nom, ville, n° client, téléphone, e-mail, SIREN. Recherche avancée avec filtres et export Excel. |
 | Répartition | Proposition automatique réglable, aperçu chiffré avant d'appliquer, attribution en un clic ou par lot, onglet « Code … (parti) » pour reprendre les clients du commercial parti qu'on gère encore. |
 | Doublons | Groupes de fiches en double (même nom + adresse, même SIRET au même endroit…), fusion ou « ce ne sont pas des doublons ». |
@@ -33,14 +33,15 @@ dérivée par PBKDF2). Aucune donnée client n'est stockée dans ce dépôt.
    modifiés par la proposition automatique.
 2. Un compte (un payeur et tous ses sites) n'est jamais coupé : les sites libres d'un compte rejoignent celui
    qui en tient déjà une partie (ex. un payeur du responsable dont certains sites portaient un autre code).
-3. Les N plus gros comptes encore libres sont réservés au responsable (N réglable, 10 par défaut).
-4. Le reste est partagé entre les commerciaux, au choix :
-   - **par typologie** : chacun reçoit la même part de chaque typologie, du plus gros compte au plus petit,
-     en privilégiant les villes où il est déjà présent ;
-   - **par secteur** : des secteurs géographiques d'un seul tenant autour de Lyon, de poids égal.
+3. Les N plus gros comptes encore libres (ceux qui ont le plus de sites d'intervention) sont réservés au
+   responsable (N réglable, 10 par défaut).
+4. Le reste est partagé entre les commerciaux **en nombre de comptes**, au choix :
+   - **par typologie** : chacun reçoit le même nombre de comptes de chaque typologie (à un compte près), les
+     gros comptes étant alternés, en privilégiant les villes où il est déjà présent ;
+   - **par secteur** : des secteurs géographiques d'un seul tenant autour de Lyon, d'autant de comptes chacun.
 
-Le **poids** d'un compte = nombre de sites d'intervention + un bonus (2 par défaut) par site sous contrat
-d'entretien.
+Tout se compte en comptes : un client est un compte, quel que soit son nombre de sites. Les contrats
+d'entretien n'entrent pas dans le calcul.
 
 ### Typologies
 

@@ -28,8 +28,9 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
 
   const setOwner = (to: string | null, whole: boolean) => {
     const ids = whole && acct ? acct.clientIds : [c.id];
-    actions.assign(ids, to, `« ${c.nom} »${whole && acct && acct.sites > 1 ? ` et ses ${acct.sites - 1} autres sites` : ""} → ${to ? team.find((m) => m.id === to)?.nom : "pool"}`);
-    toast(`${whole && acct && acct.sites > 1 ? `${acct.sites} fiches` : "Fiche"} attribuée(s) à ${to ? team.find((m) => m.id === to)?.nom : "personne (pool)"}`);
+    const compte = whole && acct && acct.clientIds.length > 1;
+    actions.assign(ids, to, `${compte ? "Compte " : ""}« ${compte ? d.byId.get(acct!.id)?.nom ?? c.nom : c.nom} » → ${to ? team.find((m) => m.id === to)?.nom : "pool"}`);
+    toast(`${compte ? "Compte" : "Fiche"} attribué(e) à ${to ? team.find((m) => m.id === to)?.nom : "personne (pool)"}`);
   };
 
   return (
@@ -84,7 +85,7 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
 
           {isAdmin && (
             <div className="col" style={{ gap: 8 }}>
-              <span className="small muted">Attribuer {acct && acct.sites > 1 ? `le compte entier (${acct.sites} fiches)` : "ce client"}</span>
+              <span className="small muted">Attribuer {acct && acct.clientIds.length > 1 ? `le compte entier (${acct.clientIds.length} adresses)` : "ce client"}</span>
               <div className="row wrap" style={{ gap: 6 }}>
                 {team.map((m) => (
                   <button key={m.id} className="btn sm" disabled={o === m.id && (!acct || acct.clientIds.every((x) => owner(x) === m.id))} onClick={() => setOwner(m.id, true)}>
@@ -95,9 +96,9 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
                   Pool
                 </button>
               </div>
-              {acct && acct.sites > 1 && (
+              {acct && acct.clientIds.length > 1 && (
                 <div className="row wrap" style={{ gap: 6 }}>
-                  <span className="small muted">Ce site seulement :</span>
+                  <span className="small muted">Cette adresse seulement :</span>
                   {team.map((m) => (
                     <button key={m.id} className="btn sm ghost" disabled={o === m.id} onClick={() => setOwner(m.id, false)}>
                       {m.nom}
@@ -135,8 +136,6 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
                 {c.segmentSource === "manuel" ? "corrigée à la main" : c.segmentSource === "defaut" ? "estimée (aucun indice précis)" : c.segmentSource === "payeur" ? "déduite du payeur" : c.segmentSource === "mot-cle" ? "déduite du nom" : "famille ERP"}
               </div>
             </dd>
-            <dt>Contrat</dt>
-            <dd>{c.contrat ? "Sous contrat d'entretien" : "Non"}</dd>
             {c.code && (
               <>
                 <dt>Code ERP</dt>
@@ -253,7 +252,7 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
               <div className="row">
                 <h3 className="grow">Compte « {d.byId.get(acct.id)?.nom || "confidentiel"} »</h3>
                 <span className="muted small">
-                  {fmt(acct.sites)} site(s) · {fmt(acct.clientIds.length)} fiches · {fmt(acct.contrats)} contrats
+                  {fmt(acct.sites)} site(s) · {fmt(acct.clientIds.length)} adresses
                 </span>
               </div>
               {isAdmin && (
@@ -281,7 +280,6 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
                         <div className="ellipsis">{sc.nom || "Client confidentiel"}</div>
                         <div className="small muted ellipsis">
                           {sc.cp} {sc.ville}
-                          {sc.contrat ? " · contrat" : ""}
                         </div>
                       </span>
                       <Who team={team} id={owner(sid)} />

@@ -4,7 +4,7 @@ import type { Nav } from "../App";
 import { AccountTable } from "../AccountTable";
 import { Icon } from "../icons";
 import { useStore } from "../store";
-import { fmt, memberVar, Modal, pct, Seg, Switch, useToast, Who, w } from "../ui";
+import { fmt, memberVar, Modal, pct, plural, Seg, Switch, useToast, Who, w } from "../ui";
 
 type Tab = "pool" | "arnaud" | "grands" | "tous" | "manuels";
 
@@ -39,7 +39,9 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
     toast("Proposition appliquée", { label: "Annuler", run: undo });
   };
 
-  const changes = d.active.filter((c) => !state.pins[c.id] && (p.owners[c.id] ?? "") !== (state.owners[c.id] ?? "")).length;
+  // Comptes qui changeraient de main (au moins une fiche non épinglée).
+  const changes = accounts.filter((a) => a.clientIds.some((id) => !state.pins[id] && (p.owners[id] ?? "") !== (state.owners[id] ?? ""))).length;
+  const totalComptes = Math.max(1, d.accounts.size);
 
   return (
     <>
@@ -60,7 +62,7 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
               <p>Réglez, observez le résultat, puis appliquez. Vos choix manuels (épinglés) ne sont jamais modifiés.</p>
             </div>
             <span className={`pill ${p.ecart < 0.05 ? "ok" : p.ecart < 0.15 ? "warn" : "bad"}`}>
-              Écart {receivers.map((r) => r.nom).join("/")} : {pct(p.ecart, 1)}
+              Écart {receivers.map((r) => r.nom).join("/")} : {plural(p.ecartComptes, "compte", "comptes")}
             </span>
           </div>
           <div className="table-wrap" style={{ maxHeight: "none" }}>
@@ -69,30 +71,26 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
                 <tr>
                   <th />
                   <th className="r">Comptes</th>
-                  <th className="r">Sites</th>
-                  <th className="r">Contrats</th>
-                  <th className="r">Poids</th>
+                  <th className="r">Part</th>
                   <th className="r hide-mobile">Variation</th>
                 </tr>
               </thead>
               <tbody>
                 {p.stats.map((ps) => {
                   const cs = current.find((x) => x.id === ps.id)!;
-                  const delta = ps.sites - cs.sites;
+                  const delta = ps.comptes - cs.comptes;
                   return (
                     <tr key={ps.id}>
                       <td>
                         <Who team={team} id={ps.id} />
                       </td>
-                      <td className="r num">{fmt(ps.comptes)}</td>
-                      <td className="r num">{fmt(ps.sites)}</td>
-                      <td className="r num">{fmt(ps.contrats)}</td>
                       <td className="r num">
-                        <b>{fmt(ps.score)}</b>
+                        <b>{fmt(ps.comptes)}</b>
                       </td>
+                      <td className="r num">{pct(ps.comptes / totalComptes)}</td>
                       <td className="r num hide-mobile" style={{ color: delta ? "var(--text-2)" : "var(--muted)" }}>
                         {delta > 0 ? "+" : ""}
-                        {fmt(delta)} sites
+                        {fmt(delta)} comptes
                       </td>
                     </tr>
                   );
@@ -103,21 +101,21 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
           <div style={{ margin: "14px 0 6px" }}>
             <div className="meter" style={{ height: 12 }}>
               {p.stats.map((ps) => (
-                <span key={ps.id} style={{ width: w(ps.score / Math.max(1, p.stats.reduce((x, y) => x + y.score, 0))), background: memberVar(team, ps.id) }} />
+                <span key={ps.id} style={{ width: w(ps.comptes / totalComptes), background: memberVar(team, ps.id) }} />
               ))}
             </div>
             <div className="legend" style={{ marginTop: 8 }}>
               {p.stats.map((ps) => (
                 <span key={ps.id}>
                   <i style={{ background: memberVar(team, ps.id) }} />
-                  {team.find((m) => m.id === ps.id)?.nom} {pct(ps.score / Math.max(1, p.stats.reduce((x, y) => x + y.score, 0)))} du poids
+                  {team.find((m) => m.id === ps.id)?.nom} {pct(ps.comptes / totalComptes)} des comptes
                 </span>
               ))}
             </div>
           </div>
           <div className="row wrap" style={{ marginTop: 14 }}>
             <button className="btn primary" disabled={!changes} onClick={apply}>
-              <Icon name="sparkle" size={16} /> Appliquer la proposition {changes ? `(${fmt(changes)} fiches)` : ""}
+              <Icon name="sparkle" size={16} /> Appliquer la proposition {changes ? `(${plural(changes, "compte", "comptes")})` : ""}
             </button>
             <span className="spacer" />
             <button className="btn ghost danger" onClick={() => setConfirmReset(true)}>
@@ -128,15 +126,17 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
             <li>
               <b>{responsable?.nom}</b> garde tous ses clients (code {responsable?.codes.join(", ")}) et vos choix manuels sont respectés.
             </li>
-            {s.rattacherComptes && <li>Un compte (payeur + ses sites) n'est jamais coupé : ses sites libres rejoignent celui qui en tient déjà une partie.</li>}
+            {s.rattacherComptes && <li>Un compte (payeur + ses sites) n'est jamais coupé : il reste entier chez celui qui en tient déjà une partie.</li>}
             {s.grandsComptes > 0 && (
               <li>
-                Les {s.grandsComptes} plus gros comptes encore libres reviennent à {responsable?.nom}.
+                Les {s.grandsComptes} plus gros comptes encore libres (ceux qui ont le plus de sites) reviennent à {responsable?.nom}.
               </li>
             )}
             <li>
               Le reste est partagé entre {receivers.map((r) => r.nom).join(" et ")}{" "}
-              {s.mode === "type" ? "typologie par typologie, du plus gros compte au plus petit, en privilégiant les villes où chacun est déjà présent." : "en secteurs géographiques d'un seul tenant, de poids égal."}
+              {s.mode === "type"
+                ? "en nombre de comptes : autant de comptes de chaque typologie pour chacun, les gros comptes alternés, en privilégiant les villes où chacun est déjà présent."
+                : "en secteurs géographiques d'un seul tenant, avec autant de comptes chacun."}
             </li>
           </ol>
         </div>
@@ -155,8 +155,8 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
             />
             <span className="small muted">
               {s.mode === "type"
-                ? "Chacun reçoit la même part de chaque typologie (industrie, tertiaire, boulangeries…), du plus gros compte au plus petit."
-                : "Chacun reçoit un secteur géographique d'un seul tenant autour de Lyon, de poids égal : moins de route."}
+                ? "Chacun reçoit le même nombre de comptes dans chaque typologie (industrie, tertiaire, boulangeries…)."
+                : "Chacun reçoit un secteur géographique d'un seul tenant autour de Lyon, avec autant de comptes : moins de route."}
             </span>
           </div>
           <label className="field">
@@ -165,14 +165,8 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
             </span>
             <input type="range" min={0} max={40} value={s.grandsComptes} onChange={(e) => actions.settings({ grandsComptes: +e.target.value })} />
           </label>
-          <Switch checked={s.rattacherComptes} onChange={(v) => actions.settings({ rattacherComptes: v })} label="Un compte n'est jamais coupé : ses sites suivent celui qui le tient déjà" />
+          <Switch checked={s.rattacherComptes} onChange={(v) => actions.settings({ rattacherComptes: v })} label="Un compte n'est jamais coupé : il reste entier chez celui qui le tient déjà" />
           {s.mode === "type" && <Switch checked={s.proximite} onChange={(v) => actions.settings({ proximite: v })} label="Privilégier la proximité (même ville)" />}
-          <label className="field">
-            <span>
-              Poids d'un contrat d'entretien : <b>+{s.poidsContrat}</b> par site sous contrat
-            </span>
-            <input type="range" min={0} max={6} step={0.5} value={s.poidsContrat} onChange={(e) => actions.settings({ poidsContrat: +e.target.value })} />
-          </label>
           {receivers.map((m) => (
             <label className="field" key={m.id}>
               <span>

@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { mainOf } from "../../core/accounts";
+import { cityKey, deptCode, deptName } from "../../core/geo";
 import { ROLE_LABEL } from "../../core/roles";
 import { SEGMENTS } from "../../core/segments";
 import { exportWorkbook } from "../../lib/excel";
@@ -18,11 +20,22 @@ export function Portfolio({ id, go, openClient }: { id: string; go: Nav; openCli
   const pending = state.ajouts.filter((a) => a.par === id && a.statut === "en-attente");
   if (!m || !s) return <div className="empty">Personne inconnue.</div>;
 
-  const total = d.sites.length;
-  const segs = SEGMENTS.map((g) => ({ g, ...s.parSegment[g.id] }))
-    .filter((x) => x.clients > 0)
-    .sort((a, b) => b.clients - a.clients);
-  const maxSeg = Math.max(1, ...segs.map((x) => x.clients));
+  const total = Math.max(1, d.accounts.size);
+  const segs = SEGMENTS.map((g) => ({ g, n: s.parSegment[g.id] }))
+    .filter((x) => x.n > 0)
+    .sort((a, b) => b.n - a.n);
+  const maxSeg = Math.max(1, ...segs.map((x) => x.n));
+  const count = (key: (a: (typeof accounts)[number]) => string) => {
+    const m = new Map<string, number>();
+    accounts.forEach((a) => {
+      const k = key(a);
+      if (k) m.set(k, (m.get(k) ?? 0) + 1);
+    });
+    return [...m].sort((x, y) => y[1] - x[1]);
+  };
+  const depts = count((a) => mainOf(a, d.byId, (c) => deptCode(c.cp)));
+  const located = depts.reduce((n, [, v]) => n + v, 0);
+  const cities = count((a) => mainOf(a, d.byId, (c) => cityKey(c.cp, c.ville)));
   const canExport = isAdmin || id === session.me;
 
   const exportXlsx = () => {
@@ -56,22 +69,22 @@ export function Portfolio({ id, go, openClient }: { id: string; go: Nav; openCli
           <span className="hero-num" style={{ fontSize: 44 }}>
             {fmt(s.comptes)}
           </span>
-          <span className="stat-sub">payeurs et leurs sites</span>
+          <span className="stat-sub">{pct(s.comptes / total)} des comptes de l'entreprise</span>
         </div>
         <div className="card stat">
-          <span className="stat-label">Sites d'intervention</span>
-          <span className="stat-value">{fmt(s.sites)}</span>
-          <span className="stat-sub">{pct(s.sites / Math.max(1, total))} des sites de l'entreprise</span>
+          <span className="stat-label">Première typologie</span>
+          <span className="stat-value">{segs[0]?.g.court ?? "–"}</span>
+          <span className="stat-sub">{segs[0] ? `${fmt(segs[0].n)} comptes · ${pct(segs[0].n / Math.max(1, s.comptes))}` : ""}</span>
         </div>
         <div className="card stat">
-          <span className="stat-label">Contrats d'entretien</span>
-          <span className="stat-value">{fmt(s.contrats)}</span>
-          <span className="stat-sub">{pct(s.contrats / Math.max(1, s.sites))} de ses sites</span>
+          <span className="stat-label">Départements</span>
+          <span className="stat-value">{fmt(depts.length)}</span>
+          <span className="stat-sub">{depts[0] ? `${pct(depts[0][1] / Math.max(1, located))} des comptes : ${deptName(depts[0][0])}` : ""}</span>
         </div>
         <div className="card stat">
-          <span className="stat-label">Poids du portefeuille</span>
-          <span className="stat-value">{fmt(s.score)}</span>
-          <span className="stat-sub">{pct(s.score / Math.max(1, d.stats.reduce((x, y) => x + y.score, 0)))} du total réparti</span>
+          <span className="stat-label">Villes</span>
+          <span className="stat-value">{fmt(cities.length)}</span>
+          <span className="stat-sub">{cities[0] ? `la première : ${cities[0][0].charAt(0) + cities[0][0].slice(1).toLowerCase()} (${fmt(cities[0][1])} comptes)` : ""}</span>
         </div>
       </div>
 
@@ -79,14 +92,15 @@ export function Portfolio({ id, go, openClient }: { id: string; go: Nav; openCli
         <div className="card">
           <div className="card-head">
             <h3 className="grow">Typologies</h3>
+            <span className="small muted">en comptes</span>
           </div>
           {segs.map((x) => (
             <div className="hbar" key={x.g.id} style={{ gridTemplateColumns: "minmax(90px,130px) 1fr auto" }}>
               <span className="hbar-label ellipsis">{x.g.court}</span>
               <span className="hbar-track">
-                <span style={{ width: w(x.clients / maxSeg), background: memberVar(team, id), borderRadius: "0 4px 4px 0" }} />
+                <span style={{ width: w(x.n / maxSeg), background: memberVar(team, id), borderRadius: "0 4px 4px 0" }} />
               </span>
-              <span className="hbar-value">{fmt(x.clients)}</span>
+              <span className="hbar-value">{fmt(x.n)}</span>
             </div>
           ))}
           {!segs.length && <p className="muted">Aucun client pour l'instant.</p>}
