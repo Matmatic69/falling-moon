@@ -1,0 +1,25 @@
+{
+  "name": "portefeuille-clients",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Répartition du portefeuille clients — fichier HTML local, autonome et chiffré",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit -p .",
+    "geo": "node scripts/prepare-geo.mjs",
+    "analyse": "node scripts/analyse.mjs"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "codes-postaux": "4.1.2",
+    "esbuild": "0.24.0",
+    "typescript": "5.6.3"
+  }
+}
