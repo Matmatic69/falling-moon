@@ -1,0 +1,49 @@
+{
+ "numero": "C014757",
+ "date": "05/10/2026",
+ "validite": "30 jours",
+ "references": {"Demande": "Berrys – 16/09/2026"},
+ "taux_tva": 10,
+ "objet_court": "Remplacement de l'interphone\npar un interphone ROZOH à défilement GSM",
+ "rappel_entete": "Demande Berrys du 16/09/2026",
+ "client": {"nom": "BERRYS", "lignes": ["111, rue de Créqui – 69006 LYON (entrée 15, rue Bossuet)", "Demandeur : Léane KRUKLY – l.krukly@berrys.fr – 06 01 95 25 81"]},
+ "site": {"nom": "PAVILLON 52", "lignes": [], "equipement": "Équipement : interphone d'accès existant"},
+ "objet_detail": "Remplacement de l'interphone existant du site PAVILLON 52 par un interphone ROZOH à défilement de noms, avec centrale GSM : les appels sont renvoyés sur le téléphone portable des résidents, sans câblage vers les logements. Communications audio, vidéo et data incluses pendant 10 ans.",
+ "constat": {"contexte": "Signalement du gestionnaire Berrys du 28/09/2026.", "desordres": ["Interphone existant peu audible : les échanges avec les visiteurs sont difficiles et les locataires s'en plaignent.", "Le gestionnaire souhaite remplacer l'appareil par un interphone de marque ROZOH."]},
+ "prestation": {
+  "compris": ["Dépose de l'interphone existant et évacuation en filière agréée", "Fourniture et pose en applique de la platine ROZOH à défilement et de son boîtier inox", "Pose et raccordement de la centrale GSM et de la carte relais sur la gâche ou la ventouse existante", "Création des fiches résidents et programmation des numéros d'appel", "Reprise du support, rebouchage et finitions", "Essais, mise en service et prise en main par le gestionnaire"],
+  "non_compris": ["Remplacement de la gâche, de la ventouse ou de l'alimentation existantes", "Fourniture des badges (proposée en option, voir chapitre 4)", "Travaux de maçonnerie au-delà de la reprise du support de la platine", "Antenne GSM déportée si la couverture réseau est insuffisante", "Toute prestation non décrite au chapitre 4"]
+ },
+ "postes": [
+  {"titre": "POSTE A – FOURNITURE DE MATÉRIEL", "titre_court": "Poste A – Fourniture", "lignes": [
+   {"idx": "A1", "designation": "Interphone ROZOH à défilement de noms", "description": "Platine inox avec clavier codé et lecteur de badges mains libres, conforme ERP.", "reference": "R201-0001", "unite": "u", "qte": 1, "pu": 1371.87},
+   {"idx": "A2", "designation": "Boîtier inox pour pose en applique", "description": "Boîtier saillie adapté à la platine à défilement.", "reference": "R801-0007", "unite": "u", "qte": 1, "pu": 221.70},
+   {"idx": "A3", "designation": "Centrale GSM pour interphone à défilement – 20 fiches", "description": "Module de transmission avec appel sur téléphone portable. Audio, vidéo et data illimités pendant 10 ans.", "reference": "R101-0010", "unite": "u", "qte": 1, "pu": 3440.00},
+   {"idx": "A4", "designation": "Fiche résident au-delà de 20", "description": "Fiche supplémentaire, communications incluses pendant 10 ans. Quantité à ajuster au nombre réel de logements.", "reference": "R101-0105", "unite": "u", "qte": 10, "pu": 95.00},
+   {"idx": "A5", "designation": "Carte relais", "description": "Commande de la gâche ou de la ventouse existante.", "reference": "R103-0001", "unite": "u", "qte": 1, "pu": 86.13}
+  ]},
+  {"titre": "POSTE B – MAIN-D'ŒUVRE ET MISE EN SERVICE", "titre_court": "Poste B – Main-d'œuvre", "lignes": [
+   {"idx": "B1", "designation": "Dépose et pose – 2 techniciens, 1 journée", "description": "Dépose de l'existant ; pose en applique de la platine et de la centrale ; raccordements. 16,00 h × 70,00 € HT", "unite": "h", "qte": 16, "pu": 70.0},
+   {"idx": "B2", "designation": "Programmation et mise en service", "description": "Création des fiches, programmation des numéros, essais d'appel et d'ouverture, prise en main. 4,00 h × 70,00 € HT", "unite": "h", "qte": 4, "pu": 70.0},
+   {"idx": "B3", "designation": "Finitions et consommables", "description": "Reprise du support, rebouchage, goulottes, petites fournitures.", "unite": "forfait", "qte": 1, "pu": 350.0}
+  ]}
+ ],
+ "note_detail": "les prix s'entendent matériel neuf garanti constructeur, rendu et posé sur site. OPTION non incluse dans le total : badges mains libres ROZOH (R403) neufs, 20,00 € HT pièce ; la quantité est à définir avec le gestionnaire.",
+ "conditions_tableau": {
+  "Validité de l'offre": "30 jours à compter du 05/10/2026, soit jusqu'au 04/11/2026",
+  "Délai d'approvisionnement": "À confirmer à réception de la commande",
+  "Intervention": "Sur rendez-vous, en heures ouvrées – 1 journée, 2 techniciens",
+  "Garantie": "1 an pièces et main-d'œuvre à compter de la mise en service",
+  "TVA": "10 % – travaux dans des locaux d'habitation achevés depuis plus de 2 ans. Le preneur certifie que les conditions d'application du taux réduit sont remplies (art. 279-0 bis du CGI).",
+  "Modalités de règlement": "30 jours à réception de facture – virement"
+ },
+ "reserves": [
+  "Le nombre de fiches est établi sur une hypothèse de 30 logements ; il sera ajusté au nombre réel.",
+  "La couverture GSM sera vérifiée sur site ; si elle est insuffisante, une antenne déportée fera l'objet d'un devis complémentaire.",
+  "La gâche ou la ventouse et leur alimentation sont réputées existantes et en état de fonctionnement.",
+  "Le présent devis annule et remplace toute proposition antérieure portant sur le même équipement."
+ ],
+ "pieces_jointes": ["fiche produit ROZOH interphone à défilement"],
+ "annexes_techniques": [],
+ "fiches_fabricant": []
+}
