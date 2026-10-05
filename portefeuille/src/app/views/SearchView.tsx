@@ -179,7 +179,10 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
 
       <div className="card flush">
         <div className="row" style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
-          <b>{fmt(results.length)} résultat(s)</b>
+          <b>
+            {fmt(new Set(results.map(({ c }) => d.acctOf.get(c.id) ?? c.id)).size)} compte(s)
+          </b>
+          <span className="small muted">({fmt(results.length)} adresse(s))</span>
         </div>
         <div className="table-wrap" style={{ maxHeight: "none" }}>
           <table className="table">
