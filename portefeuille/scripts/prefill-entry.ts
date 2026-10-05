@@ -19,6 +19,8 @@ export interface Patch {
   prospects?: { nom: string; ville: string; cp?: string; segment: SegmentId; owner: string; note?: string }[];
   /** Fichier partagé : consultation sans mot de passe pour l'équipe, gestion sous mot de passe. */
   partage?: boolean;
+  /** Enseignes dont les adresses d'un même compte sont regroupées (ex. « LCL »). */
+  regrouper?: string[];
 }
 import { deriveKey, randomBytes, seal, toB64 } from "../src/lib/crypto";
 
@@ -29,6 +31,7 @@ export async function prefill(file: string, password: string, setup: TeamSetup, 
   const { clients, report } = parseRows(rows);
   let state = createState(clients, file.split(/[\\/]/).pop() ?? "export", setup);
   const known = new Set(state.clients.map((c) => c.id));
+  if (patch.regrouper) state.settings = { ...state.settings, regrouper: patch.regrouper };
   if (patch.siteUnique) state.siteUnique = patch.siteUnique.filter((id) => known.has(id));
   if (patch.groupes) state.settings = { ...state.settings, groupes: patch.groupes, groupesExclus: (patch.groupesExclus ?? []).filter((id) => known.has(id)) };
   if (patch.prospects)

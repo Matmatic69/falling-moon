@@ -340,6 +340,30 @@ export function SettingsView() {
 
         <div className="card">
           <div className="card-head">
+            <h3 className="grow">Regrouper des enseignes</h3>
+          </div>
+          <p className="small muted" style={{ marginBottom: 10 }}>
+            Noms d'enseignes (séparés par des virgules) dont les nombreuses adresses d'un même compte ne doivent compter que pour une : par exemple les agences d'une banque
+            entretenues pour un facility manager. Elles restent consultables dans la fiche du compte.
+          </p>
+          <input
+            className="input"
+            style={{ width: "100%" }}
+            defaultValue={(state.settings.regrouper ?? []).join(", ")}
+            placeholder="Ex. LCL"
+            onBlur={(e) => {
+              const regrouper = e.target.value.split(",").map((x) => x.trim().toUpperCase()).filter(Boolean);
+              if (regrouper.join() !== (state.settings.regrouper ?? []).join()) {
+                actions.settings({ regrouper });
+                toast(regrouper.length ? `Adresses regroupées : ${regrouper.join(", ")}` : "Plus aucune enseigne regroupée");
+              }
+            }}
+            aria-label="Enseignes à regrouper"
+          />
+        </div>
+
+        <div className="card">
+          <div className="card-head">
             <h3 className="grow">Reprendre un ancien fichier</h3>
           </div>
           <p className="small muted" style={{ marginBottom: 10 }}>

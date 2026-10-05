@@ -1,3 +1,4 @@
+import { groupKey } from "./groups";
 import { deptCode } from "./geo";
 import type { Client } from "./types";
 
@@ -28,6 +29,7 @@ export function computeRoles(
   merges: Record<string, string>,
   zone: string[] = ZONE_DEFAUT,
   siteUnique: string[] = [],
+  regrouper: string[] = [],
 ): Map<string, AddressRole> {
   const unique = new Set(siteUnique);
   const ids = new Set(active.map((c) => c.id));
@@ -51,6 +53,20 @@ export function computeRoles(
     else if (payers.has(c.id)) roles.set(c.id, "facturation");
     else if (c.type === "1" && c.cp && !inZone.has(deptCode(c.cp))) roles.set(c.id, "hors-zone");
     else roles.set(c.id, "site");
+  }
+  // Enseignes regroupées : dans un même compte, toutes leurs adresses n'en font qu'une (la première gardée).
+  const keys = regrouper.map(groupKey).filter(Boolean);
+  if (keys.length) {
+    const kept = new Set<string>();
+    for (const c of [...active].sort((a, b) => a.id.localeCompare(b.id))) {
+      if (roles.get(c.id) !== "site") continue;
+      const name = ` ${groupKey(c.nom)} `;
+      const k = keys.find((k) => name.includes(` ${k} `));
+      if (!k) continue;
+      const slot = `${payerOf.get(c.id) ?? c.id}|${k}`;
+      if (kept.has(slot)) roles.set(c.id, "regroupe");
+      else kept.add(slot);
+    }
   }
   return roles;
 }

@@ -87,6 +87,8 @@ export interface Settings {
   zone?: string[];
   /** Fichier partagé : il s'ouvre sans mot de passe en lecture pour l'équipe (sans coordonnées) ; la gestion reste sous mot de passe. */
   partage?: boolean;
+  /** Noms d'enseignes dont les adresses d'un même compte sont regroupées en une seule (ex. les agences d'une banque). */
+  regrouper?: string[];
 }
 
 export interface JournalEntry {

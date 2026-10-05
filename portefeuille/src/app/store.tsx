@@ -164,7 +164,7 @@ export function StoreProvider({
     const clients = withOverrides(state.clients, state);
     const active = activeClients(clients, state.merges);
     const byId = new Map(clients.map((c) => [c.id, c]));
-    const roles = computeRoles(active, state.merges, state.settings.zone, state.siteUnique);
+    const roles = computeRoles(active, state.merges, state.settings.zone, state.siteUnique, state.settings.regrouper);
     const accounts = buildAccounts(clients, state.merges, state.settings.zone, roles);
     const acctOf = accountOf(accounts);
     const stats = memberStats(state.team, state.owners, accounts);
@@ -175,7 +175,7 @@ export function StoreProvider({
     const sites = active.filter((c) => roles.get(c.id) === "site");
     return { active, byId, accounts, acctOf, stats, acctOwner, pool, index: buildIndex(active), roles, isSite, sites };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.clients, state.merges, state.segmentOverrides, state.owners, state.team, state.settings.zone, state.siteUnique]);
+  }, [state.clients, state.merges, state.segmentOverrides, state.owners, state.team, state.settings.zone, state.settings.regrouper, state.siteUnique]);
 
   const owner = useCallback((id: string) => state.owners[resolveMerge(id, state.merges)] || undefined, [state.owners, state.merges]);
   const member = useCallback((id: string | undefined) => state.team.find((m) => m.id === id), [state.team]);
