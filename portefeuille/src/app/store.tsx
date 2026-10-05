@@ -6,7 +6,7 @@ import { memberStats, propose, type MemberStats, type Proposal } from "../core/d
 import { classify, classifyAll, defaultSegment } from "../core/segments";
 import { buildIndex, type SearchIndex } from "../core/search";
 import { applyCodeOwners, applyProposal, randomId } from "../core/state";
-import type { Account, Ajout, Client, Empreinte, Member, PortfolioState, Role, SegmentId, Settings } from "../core/types";
+import type { Account, Ajout, Client, Empreinte, Member, PortfolioState, Prospect, Role, SegmentId, Settings } from "../core/types";
 import { seal, type SessionKey } from "../lib/crypto";
 import { idbSet } from "../lib/idb";
 
@@ -73,6 +73,9 @@ export interface Actions {
   settings: (patch: Partial<Settings>) => void;
   memberUpdate: (id: string, patch: Partial<Member>) => void;
   addClient: (c: Client, owner: string | null) => void;
+  addProspect: (p: Omit<Prospect, "id" | "le">) => void;
+  moveProspect: (id: string, owner: string) => void;
+  removeProspect: (id: string) => void;
   receiveAjouts: (list: Ajout[]) => number;
   decideAjout: (clientId: string, accept: boolean, owner?: string, motif?: string) => void;
   replaceClients: (fresh: Client[], source: string) => { ajoutes: number; retires: number; maj: number };
@@ -255,6 +258,18 @@ export function StoreProvider({
         }),
       ignoreDuplicate: (key) => update(null, (s) => ({ ...s, ignores: [...s.ignores, key] })),
       settings: (patch) => update(null, (s) => ({ ...s, settings: { ...s.settings, ...patch } })),
+      addProspect: (p) =>
+        update(`Prospect « ${p.nom} » confié à ${name(state, p.owner)}`, (s) => ({
+          ...s,
+          prospects: [...(s.prospects ?? []), { ...p, id: `P-${randomId(6)}`, le: new Date().toISOString() }],
+        })),
+      moveProspect: (id, owner) =>
+        update(`Prospect « ${(state.prospects ?? []).find((p) => p.id === id)?.nom ?? id} » confié à ${name(state, owner)}`, (s) => ({
+          ...s,
+          prospects: (s.prospects ?? []).map((p) => (p.id === id ? { ...p, owner } : p)),
+        })),
+      removeProspect: (id) =>
+        update(`Prospect « ${(state.prospects ?? []).find((p) => p.id === id)?.nom ?? id} » retiré`, (s) => ({ ...s, prospects: (s.prospects ?? []).filter((p) => p.id !== id) })),
       memberUpdate: (id, patch) =>
         update(null, (s) => {
           const team = s.team.map((m) => (m.id === id ? { ...m, ...patch } : m));

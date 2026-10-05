@@ -252,6 +252,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
                 <th />
                 <th className="r">Comptes</th>
                 <th className="r">Part</th>
+                <th className="r">Prospects</th>
               </tr>
             </thead>
             <tbody>
@@ -262,6 +263,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
                   </td>
                   <td className="r num">{fmt(s.comptes)}</td>
                   <td className="r num">{pct(s.comptes / Math.max(1, total))}</td>
+                  <td className="r num">{fmt((state.prospects ?? []).filter((p) => p.owner === s.id).length) || "–"}</td>
                 </tr>
               ))}
             </tbody>

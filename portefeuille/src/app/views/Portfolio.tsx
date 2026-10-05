@@ -1,18 +1,22 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { mainOf } from "../../core/accounts";
 import { cityKey, deptCode, deptName } from "../../core/geo";
 import { ROLE_LABEL } from "../../core/roles";
-import { SEGMENTS } from "../../core/segments";
+import { SEGMENTS, SEGMENT_BY_ID } from "../../core/segments";
+import type { SegmentId } from "../../core/types";
 import { exportWorkbook } from "../../lib/excel";
 import { download, slug, today } from "../../lib/file";
 import type { Nav } from "../App";
 import { AccountTable } from "../AccountTable";
 import { Icon } from "../icons";
 import { useStore } from "../store";
-import { fmt, memberVar, pct, Who, w } from "../ui";
+import { fmt, memberVar, pct, useToast, Who, w } from "../ui";
 
 export function Portfolio({ id, go, openClient }: { id: string; go: Nav; openClient: (id: string) => void }) {
-  const { state, d, owner, isAdmin, session } = useStore();
+  const { state, d, owner, isAdmin, session, actions } = useStore();
+  const toast = useToast();
+  const prospects = (state.prospects ?? []).filter((p) => p.owner === id).sort((a, b) => a.segment.localeCompare(b.segment) || a.nom.localeCompare(b.nom));
+  const [np, setNp] = useState({ nom: "", ville: "", segment: "facilities" as SegmentId });
   const team = state.team;
   const m = team.find((t) => t.id === id);
   const s = d.stats.find((x) => x.id === id);
@@ -100,7 +104,10 @@ export function Portfolio({ id, go, openClient }: { id: string; go: Nav; openCli
               <span className="hbar-track">
                 <span style={{ width: w(x.n / maxSeg), background: memberVar(team, id), borderRadius: "0 4px 4px 0" }} />
               </span>
-              <span className="hbar-value">{fmt(x.n)}</span>
+              <span className="hbar-value">
+                {fmt(x.n)}
+                {prospects.some((p) => p.segment === x.g.id) && <span className="muted small"> +{prospects.filter((p) => p.segment === x.g.id).length} prosp.</span>}
+              </span>
             </div>
           ))}
           {!segs.length && <p className="muted">Aucun client pour l'instant.</p>}
@@ -120,6 +127,68 @@ export function Portfolio({ id, go, openClient }: { id: string; go: Nav; openCli
                   </span>
                 </div>
               ))}
+            </div>
+          )}
+          {(prospects.length > 0 || isAdmin) && (
+            <div className="card">
+              <div className="card-head">
+                <div className="grow">
+                  <h3>Prospects à démarcher</h3>
+                  <p>Sociétés qui ne sont pas encore clientes, confiées à {m.nom}. Elles ne comptent pas dans les comptes clients.</p>
+                </div>
+                <span className="badge">{prospects.length}</span>
+              </div>
+              {prospects.map((p) => (
+                <div key={p.id} className="row wrap" style={{ padding: "7px 0", borderTop: "1px solid var(--line)", gap: 8 }}>
+                  <span className="grow" style={{ minWidth: 180 }}>
+                    <b>{p.nom}</b>
+                    <div className="small muted">
+                      {[p.cp, p.ville].filter(Boolean).join(" ")} · {SEGMENT_BY_ID[p.segment].court}
+                      {p.note ? ` · ${p.note}` : ""}
+                    </div>
+                  </span>
+                  {isAdmin && (
+                    <>
+                      <select className="select" style={{ height: 30 }} value={p.owner} aria-label={`Confier ${p.nom} à`} onChange={(e) => (actions.moveProspect(p.id, e.target.value), toast(`${p.nom} confié à ${team.find((t) => t.id === e.target.value)?.nom}`))}>
+                        {team.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.nom}
+                          </option>
+                        ))}
+                      </select>
+                      <button className="btn sm ghost" aria-label={`Retirer ${p.nom}`} onClick={() => (actions.removeProspect(p.id), toast("Prospect retiré"))}>
+                        <Icon name="x" size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+              {isAdmin && (
+                <form
+                  className="row wrap"
+                  style={{ gap: 6, marginTop: 10 }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!np.nom.trim()) return;
+                    actions.addProspect({ nom: np.nom.trim().toUpperCase(), ville: np.ville.trim().toUpperCase(), segment: np.segment, owner: id });
+                    setNp({ ...np, nom: "", ville: "" });
+                    toast("Prospect ajouté");
+                  }}
+                >
+                  <input className="input" style={{ flex: "2 1 160px" }} placeholder="Société" value={np.nom} onChange={(e) => setNp({ ...np, nom: e.target.value })} aria-label="Société" />
+                  <input className="input" style={{ flex: "1 1 110px" }} placeholder="Ville" value={np.ville} onChange={(e) => setNp({ ...np, ville: e.target.value })} aria-label="Ville" />
+                  <select className="select" value={np.segment} onChange={(e) => setNp({ ...np, segment: e.target.value as SegmentId })} aria-label="Typologie">
+                    {SEGMENTS.filter((g) => g.id !== "autre").map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.court}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="btn sm" type="submit" disabled={!np.nom.trim()}>
+                    Ajouter
+                  </button>
+                </form>
+              )}
             </div>
           )}
           <AccountTable accounts={accounts} openClient={openClient} emptyText={`${m.nom} n'a pas encore de clients.`} />

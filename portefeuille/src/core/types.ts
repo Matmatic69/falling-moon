@@ -126,6 +126,21 @@ export interface PortfolioState {
   returnKeys: Record<string, string>;
   /** Comptes comptés comme un seul site (ex. une collectivité aux nombreux bâtiments) : id du payeur. */
   siteUnique?: string[];
+  /** Sociétés à démarcher, confiées à chacun (ne comptent pas dans les comptes clients). */
+  prospects?: Prospect[];
+}
+
+/** Une société à démarcher (pas encore cliente) confiée à un commercial : hors comptes clients. */
+export interface Prospect {
+  id: string;
+  nom: string;
+  ville: string;
+  cp?: string;
+  segment: SegmentId;
+  /** Membre de l'équipe qui doit s'en occuper. */
+  owner: string;
+  note?: string;
+  le: string;
 }
 
 export type Role = "responsable" | "commercial";
