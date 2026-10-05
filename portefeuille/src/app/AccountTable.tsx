@@ -217,7 +217,6 @@ export function AccountTable({
                 )}
                 <th>Compte</th>
                 <th className="hide-mobile">Typologie</th>
-                <th className="r">Sites</th>
                 <th>{proposed ? "Proposé" : "Propriétaire"}</th>
                 {isAdmin && <th className="hide-mobile">Attribuer</th>}
               </tr>
@@ -230,7 +229,7 @@ export function AccountTable({
                 const reason = reasons?.[a.id];
                 return (
                   <Fragment key={a.id}>
-                    <tr className="clickable" onClick={() => (a.sites > 1 ? setOpen(open === a.id ? null : a.id) : openClient(a.id))}>
+                    <tr className="clickable" onClick={() => (a.clientIds.length > 1 ? setOpen(open === a.id ? null : a.id) : openClient(a.id))}>
                       {isAdmin && (
                         <td onClick={(e) => e.stopPropagation()}>
                           <input
@@ -248,7 +247,7 @@ export function AccountTable({
                       )}
                       <td style={{ maxWidth: 340 }}>
                         <div className="row" style={{ gap: 6 }}>
-                          {a.sites > 1 && <Icon name="chevron" size={14} style={{ transform: open === a.id ? "rotate(90deg)" : undefined, transition: "transform .15s", color: "var(--muted)" }} />}
+                          {a.clientIds.length > 1 && <Icon name="chevron" size={14} style={{ transform: open === a.id ? "rotate(90deg)" : undefined, transition: "transform .15s", color: "var(--muted)" }} />}
                           <b className="ellipsis">{a.nom || "Client confidentiel"}</b>
                           {pinned && isAdmin && <span title="Choix manuel : la proposition automatique n'y touche pas" style={{ color: "var(--muted)" }}><Icon name="pin" size={13} /></span>}
                         </div>
@@ -259,10 +258,6 @@ export function AccountTable({
                         </div>
                       </td>
                       <td className="hide-mobile dim">{SEGMENTS.find((s) => s.id === a.segment)?.court}</td>
-                      <td className="r num">
-                        {fmt(a.sites)}
-                        {(state.siteUnique ?? []).includes(a.id) && <div className="small muted">{fmt(a.clientIds.length - 1)} adr. regroupées</div>}
-                      </td>
                       <td>
                         <div className="row" style={{ gap: 4 }}>
                           {[...(prop ?? new Set(cur.keys()))].map((o) => (
@@ -288,10 +283,10 @@ export function AccountTable({
                               <div className="small muted ellipsis">
                                 {c.adresse ? `${c.adresse} · ` : ""}
                                 {c.cp} {c.ville}
+                                {d.roles.get(id) === "site" ? "" : " · facturation"}
                               </div>
                             </td>
                             <td className="hide-mobile dim small">{SEGMENTS.find((s) => s.id === c.segment)?.court}</td>
-                            <td className="r small muted">{d.roles.get(id) === "site" ? "site" : "facturation"}</td>
                             <td>
                               <Who team={team} id={o} />
                             </td>
@@ -302,9 +297,9 @@ export function AccountTable({
                                     <button
                                       key={m.id}
                                       aria-pressed={o === m.id}
-                                      title={`Attribuer ce site à ${m.nom}`}
+                                      title={`Attribuer cette adresse à ${m.nom}`}
                                       style={o === m.id ? { background: memberVar(team, m.id) } : { borderColor: memberVar(team, m.id) }}
-                                      onClick={() => o !== m.id && (actions.assign([id], m.id), toast(`Site attribué à ${m.nom}`))}
+                                      onClick={() => o !== m.id && (actions.assign([id], m.id), toast(`Adresse attribuée à ${m.nom}`))}
                                     >
                                       {initials(m.nom)}
                                     </button>

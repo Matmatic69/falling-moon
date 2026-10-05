@@ -415,15 +415,13 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
     redraw.current();
   };
 
-  const missing = d.sites.length - d.sites.filter((c) => c.lat !== undefined).length;
-  const billing = d.active.length - d.sites.length;
 
   return (
     <>
       <div className="page-head">
         <div className="grow">
           <h1>Carte des clients</h1>
-          <p>Chaque point est un lieu d'intervention d'un compte (pas les sièges) · couleur = propriétaire · les anneaux regroupent les points proches : cliquez pour zoomer</p>
+          <p>Les comptes à leurs adresses d'intervention (pas les sièges) · couleur = propriétaire · les anneaux comptent les comptes proches : cliquez pour zoomer</p>
         </div>
       </div>
       <div className="row wrap" style={{ marginBottom: 12 }}>
@@ -442,7 +440,7 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
             </option>
           ))}
         </select>
-        <Switch checked={facturation} onChange={setFacturation} label={`Afficher aussi les ${fmt(billing)} adresses de facturation`} />
+        <Switch checked={facturation} onChange={setFacturation} label="Afficher aussi les adresses de facturation" />
       </div>
       <div className="map-wrap" ref={wrap}>
         <canvas ref={canvas} role="img" aria-label="Carte des clients colorés par propriétaire" />
@@ -469,7 +467,6 @@ export function MapView({ initialOwner, openClient }: { initialOwner?: string; o
                 </span>
               ))}
           </div>
-          {missing > 0 && <div className="muted" style={{ marginTop: 6 }}>{fmt(missing)} adresse(s) non localisable(s)</div>}
         </div>
       </div>
       <Tooltip at={tip}>{tip?.html}</Tooltip>

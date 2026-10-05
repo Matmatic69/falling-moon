@@ -145,9 +145,9 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
             ))}
           </select>
           <select className="select" value={type} onChange={(e) => setType(e.target.value as typeof type)} aria-label="Type">
-            <option value="site">Sites d'intervention</option>
+            <option value="site">Adresses d'intervention</option>
             <option value="facturation">Adresses de facturation</option>
-            <option value="">Sites et facturation</option>
+            <option value="">Toutes les adresses</option>
           </select>
           <select className="select" value={origine} onChange={(e) => setOrigine(e.target.value as typeof origine)} aria-label="Origine">
             <option value="">Toutes origines</option>
@@ -200,7 +200,7 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
                       {c.nom || "Client confidentiel"}
                     </b>
                     <div className="small muted ellipsis">
-                      {d.isSite(c.id) ? (c.payeur ? `Site · payeur : ${d.byId.get(c.payeur)?.nom ?? c.payeurNom ?? c.payeur}` : "Site") : "Adresse de facturation"}
+                      {d.isSite(c.id) ? (c.payeur ? `Compte : ${d.byId.get(c.payeur)?.nom ?? c.payeurNom ?? c.payeur}` : "") : "Adresse de facturation"}
                     </div>
                   </td>
                   <td className="hide-mobile dim">{SEGMENT_BY_ID[c.segment].court}</td>

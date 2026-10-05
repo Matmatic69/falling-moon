@@ -1,7 +1,6 @@
 import { useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { mainOf } from "../../core/accounts";
 import { cityKey, deptCode, deptName } from "../../core/geo";
-import { ZONE_DEFAUT } from "../../core/roles";
 import { SEGMENTS } from "../../core/segments";
 import type { Account } from "../../core/types";
 import type { Nav } from "../App";
@@ -51,14 +50,9 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
   const total = d.accounts.size;
   const located = deptRows.reduce((s, r) => s + r.total, 0);
   const fiches = d.active.length;
-  const billing = d.active.filter((c) => d.roles.get(c.id) === "facturation").length;
-  const horsZone = d.active.filter((c) => d.roles.get(c.id) === "hors-zone").length;
-  const zone = new Set(state.settings.zone ?? ZONE_DEFAUT);
-  const sitesHorsZone = d.sites.filter((c) => c.cp && !zone.has(deptCode(c.cp))).length;
   const merged = Object.keys(state.merges).length;
   const estimated = d.active.filter((c) => c.segmentSource === "defaut").length;
   const noContact = d.active.filter((c) => !c.tel && !c.mail && !c.portable).length;
-  const geoApprox = d.sites.filter((c) => c.geo !== "cp").length;
   const dups = isAdmin ? duplicates().length : 0;
 
   const topAccounts = useMemo(() => [...accts].sort((a, b) => b.score - a.score || a.nom.localeCompare(b.nom)).slice(0, 15), [accts]);
@@ -106,7 +100,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
         <div className="card stat">
           <span className="stat-label">Comptes clients</span>
           <span className="hero-num">{fmt(total)}</span>
-          <span className="stat-sub">un client = un compte, quel que soit son nombre de sites</span>
+          <span className="stat-sub">un client = un compte</span>
         </div>
         <div className="card stat">
           <span className="stat-label">À répartir</span>
@@ -147,7 +141,7 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
           <div className="card-head">
             <div className="grow">
               <h3>Départements</h3>
-              <p>Les 10 premiers, en comptes (là où le compte a le plus de sites)</p>
+              <p>Les 10 premiers, en comptes</p>
             </div>
           </div>
           {byDept.map((r) => (
@@ -171,31 +165,11 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
           <div className="card-head">
             <div className="grow">
               <h3>Qualité des données</h3>
-              <p>Ce que le nettoyage a corrigé, et ce qui reste à surveiller ({fmt(fiches)} fiches ERP)</p>
+              <p>Ce que le nettoyage a corrigé, et ce qui reste à surveiller</p>
             </div>
           </div>
           <table className="table">
             <tbody>
-              <tr>
-                <td>Adresses de facturation (sièges, régies, syndics) — hors carte</td>
-                <td className="r num">{fmt(billing)}</td>
-                <td />
-              </tr>
-              <tr>
-                <td>Adresses regroupées (comptes à site unique)</td>
-                <td className="r num">{fmt(d.active.filter((c) => d.roles.get(c.id) === "regroupe").length)}</td>
-                <td />
-              </tr>
-              <tr>
-                <td>Facturés hors zone, sans site connu dans l'export</td>
-                <td className="r num">{fmt(horsZone)}</td>
-                <td />
-              </tr>
-              <tr>
-                <td>Adresses d'intervention hors zone (chantiers ponctuels)</td>
-                <td className="r num">{fmt(sitesHorsZone)}</td>
-                <td />
-              </tr>
               <tr>
                 <td>Doublons fusionnés{isAdmin ? ` (${fmt(dups)} groupe(s) encore à vérifier)` : ""}</td>
                 <td className="r num">{fmt(merged)}</td>
@@ -209,11 +183,6 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
               <tr>
                 <td>Corrigées à la main</td>
                 <td className="r num">{fmt(Object.keys(state.segmentOverrides).length)}</td>
-                <td />
-              </tr>
-              <tr>
-                <td>Adresses à position approximative (CEDEX, ville)</td>
-                <td className="r num">{fmt(geoApprox)}</td>
                 <td />
               </tr>
               <tr>
@@ -234,7 +203,6 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
           <div className="card-head" style={{ padding: "18px 18px 0" }}>
             <div className="grow">
               <h3>Les 15 plus gros comptes</h3>
-              <p>Classés par nombre de sites d'intervention</p>
             </div>
           </div>
           <div className="table-wrap">
@@ -243,7 +211,6 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
                 <tr>
                   <th>Compte</th>
                   <th className="hide-mobile">Typologie</th>
-                  <th className="r">Sites</th>
                   <th>Propriétaire</th>
                 </tr>
               </thead>
@@ -257,7 +224,6 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
                         <div className="small muted">{a.ville}</div>
                       </td>
                       <td className="hide-mobile dim">{SEGMENTS.find((s) => s.id === a.segment)?.court}</td>
-                      <td className="r num">{fmt(a.sites)}</td>
                       <td>
                         <div className="row" style={{ gap: 4 }}>
                           {[...os].map((o) => (

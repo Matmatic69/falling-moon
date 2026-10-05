@@ -234,7 +234,7 @@ export function StoreProvider({
           return {
             ...s,
             siteUnique: [...cur],
-            journal: [{ at: new Date().toISOString(), par: session.me, msg: on ? `« ${nom} » compté comme un seul site` : `« ${nom} » : chaque site compte à nouveau` }, ...s.journal],
+            journal: [{ at: new Date().toISOString(), par: session.me, msg: on ? `« ${nom} » : adresses regroupées en une seule` : `« ${nom} » : adresses à nouveau séparées` }, ...s.journal],
           };
         }),
       merge: (primary, others) =>

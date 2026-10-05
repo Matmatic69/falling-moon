@@ -40,7 +40,7 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
         <div className="drawer-head">
           <div className="row">
             <span className="pill">{c.numero.startsWith("N-") ? "Ajouté dans l'outil" : `N° ${c.numero}`}</span>
-            <span className="pill">{ROLE_LABEL[d.roles.get(c.id) ?? "site"]}</span>
+            {d.roles.get(c.id) !== "site" && <span className="pill">{ROLE_LABEL[d.roles.get(c.id) ?? "site"]}</span>}
             <span className="spacer" />
             <button className="btn ghost icon" onClick={onClose} aria-label="Fermer">
               <Icon name="x" />
@@ -53,12 +53,12 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
           </p>
           {d.roles.get(c.id) === "facturation" && acct && (
             <p className="small muted" style={{ marginTop: 4 }}>
-              Adresse de facturation (siège, régie…) : les lieux d'intervention sont ses {acct.sites} site(s) ci-dessous.
+              Adresse de facturation (siège, régie…) : ses adresses d'intervention sont listées ci-dessous.
             </p>
           )}
           {d.roles.get(c.id) === "hors-zone" && (
             <p className="small muted" style={{ marginTop: 4 }}>
-              Facturé hors de la zone de travail ; aucun site n'est renseigné dans l'export pour ce client.
+              Facturé hors de la zone de travail ; aucune adresse d'intervention n'est renseignée dans l'export pour ce client.
             </p>
           )}
         </div>
@@ -252,7 +252,7 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
               <div className="row">
                 <h3 className="grow">Compte « {d.byId.get(acct.id)?.nom || "confidentiel"} »</h3>
                 <span className="muted small">
-                  {fmt(acct.sites)} site(s) · {fmt(acct.clientIds.length)} adresses
+                  {fmt(acct.clientIds.length)} adresses
                 </span>
               </div>
               {isAdmin && (
@@ -260,9 +260,9 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
                   checked={(state.siteUnique ?? []).includes(acct.id)}
                   onChange={() => {
                     actions.toggleSiteUnique(acct.id);
-                    toast((state.siteUnique ?? []).includes(acct.id) ? "Chaque site compte à nouveau" : "Compte compté comme un seul site");
+                    toast((state.siteUnique ?? []).includes(acct.id) ? "Adresses à nouveau séparées" : "Adresses regroupées en une seule");
                   }}
-                  label="Compter ce compte comme un seul site"
+                  label="Regrouper toutes ses adresses en une seule"
                 />
               )}
               <div className="card flush" style={{ maxHeight: 320, overflow: "auto" }}>

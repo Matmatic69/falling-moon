@@ -1,16 +1,18 @@
 import { activeClients, buildAccounts } from "./accounts";
+import { groupMatches } from "./groups";
 import { computeRoles, type AddressRole } from "./roles";
 import { norm } from "./normalize";
 import { SEGMENTS } from "./segments";
 import type { Account, Client, Member, PortfolioState, SegmentId } from "./types";
 
 /** Pourquoi un compte revient à quelqu'un — affiché dans l'interface. */
-export type Reason = "code" | "manuel" | "compte" | "grand-compte" | "equilibre" | "territoire" | "pool";
+export type Reason = "code" | "manuel" | "compte" | "groupe" | "grand-compte" | "equilibre" | "territoire" | "pool";
 
 export const REASON_LABEL: Record<Reason, string> = {
   code: "Code ERP du commercial",
   manuel: "Choix du responsable",
   compte: "Rejoint le compte déjà tenu",
+  groupe: "Groupe réservé au responsable",
   "grand-compte": "Grand compte réservé au responsable",
   equilibre: "Partage équilibré par typologie",
   territoire: "Partage par secteur géographique",
@@ -50,7 +52,8 @@ const LYON: [number, number] = [45.758, 4.835];
  *  1. le responsable garde ses codes (18) et les choix manuels sont respectés ;
  *  2. un compte (payeur + sites) n'est jamais coupé : ses fiches libres rejoignent
  *     la personne qui en tient déjà une partie ;
- *  3. les plus gros comptes du pool (le plus de sites) sont réservés au responsable ;
+ *  3. les comptes des groupes réservés (ex. un grand groupe et ses filiales), puis les plus gros
+ *     comptes du pool (le plus de sites), reviennent au responsable ;
  *  4. le reste est partagé entre les commerciaux en nombre de comptes : autant de
  *     comptes de chaque typologie pour chacun (ou des secteurs géographiques
  *     d'autant de comptes).
@@ -103,6 +106,15 @@ export function propose(state: PortfolioState, accounts?: Map<string, Account>):
 
   pool.sort((x, y) => y.score - x.score || x.nom.localeCompare(y.nom));
   let rest = pool;
+  if (responsable && settings.groupes?.length) {
+    const groupe = groupMatches(rest, clients, settings.groupes, settings.groupesExclus);
+    rest = rest.filter((a) => {
+      if (!groupe.has(a.id)) return true;
+      a.clientIds.forEach((id) => (owners[id] = responsable.id));
+      reasons[a.id] = "groupe";
+      return false;
+    });
+  }
   if (responsable && settings.grandsComptes > 0) {
     const reserved = rest.slice(0, settings.grandsComptes);
     reserved.forEach((a) => {

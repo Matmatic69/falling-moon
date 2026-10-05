@@ -22,7 +22,7 @@ dérivée par PBKDF2). Aucune donnée client n'est stockée dans ce dépôt.
 | Tableau de bord | En nombre de comptes : typologies × propriétaire, départements, villes, 15 plus gros comptes, codes ERP d'origine (où sont partis les clients du commercial parti), qualité des données. |
 | Carte | Carte hors-ligne (départements, communes du Rhône) des lieux d'intervention de chaque compte, colorés par propriétaire, regroupés en anneaux quand on dézoome ; filtres par personne et typologie ; adresses de facturation en option. |
 | Recherche (Ctrl + K) | « À qui appartient ce client ? » : nom, ville, n° client, téléphone, e-mail, SIREN. Recherche avancée avec filtres et export Excel. |
-| Répartition | Proposition automatique réglable, aperçu chiffré avant d'appliquer, attribution en un clic ou par lot, onglet « Code … (parti) » pour reprendre les clients du commercial parti qu'on gère encore. |
+| Répartition | Proposition automatique réglable (groupes réservés au responsable, grands comptes, partage), aperçu chiffré avant d'appliquer, attribution en un clic ou par lot, onglet « Code … (parti) » pour reprendre les clients du commercial parti qu'on gère encore. |
 | Doublons | Groupes de fiches en double (même nom + adresse, même SIRET au même endroit…), fusion ou « ce ne sont pas des doublons ». |
 | Ajouts | Les commerciaux proposent de nouveaux clients ; le responsable les valide. |
 | Réglages & fichiers | Équipe, libellés des codes ERP, zone de travail, fichiers des commerciaux, import d'un nouvel export, reprise d'un ancien fichier (après une mise à jour de l'outil), export Excel, mot de passe, journal. |
@@ -33,8 +33,10 @@ dérivée par PBKDF2). Aucune donnée client n'est stockée dans ce dépôt.
    modifiés par la proposition automatique.
 2. Un compte (un payeur et tous ses sites) n'est jamais coupé : les sites libres d'un compte rejoignent celui
    qui en tient déjà une partie (ex. un payeur du responsable dont certains sites portaient un autre code).
-3. Les N plus gros comptes encore libres (ceux qui ont le plus de sites d'intervention) sont réservés au
-   responsable (N réglable, 10 par défaut).
+3. Les **groupes réservés** reviennent au responsable : tous les comptes dont le nom, ou celui du payeur,
+   contient un mot-clé choisi (ex. le nom d'un grand groupe et de ses filiales). On peut exclure à la main un
+   compte qui porte le nom sans faire partie du groupe. Puis les N plus gros comptes encore libres lui sont
+   aussi réservés (N réglable, 10 par défaut).
 4. Le reste est partagé entre les commerciaux **en nombre de comptes**, au choix :
    - **par typologie** : chacun reçoit le même nombre de comptes de chaque typologie (à un compte près), les
      gros comptes étant alternés, en privilégiant les villes où il est déjà présent ;
@@ -93,7 +95,8 @@ npm run analyse -- /chemin/Export.xlsx --distribution
 `npm run build -- --data Export.xlsx --password "…" --equipe "Prénom:18,Prénom2,Prénom3" --parti "17:Prénom"
 --appliquer --patch corrections.json --out fichier.html` produit un fichier déjà rempli et chiffré, doublons
 certains fusionnés et répartition appliquée. `corrections.json` (local) peut contenir `siteUnique`, `segments`
-(numéro → typologie) et `epingler` (prénom → numéros de payeur). Usage local uniquement : ne jamais committer ces
+(numéro → typologie), `epingler` (prénom → numéros de payeur), `groupes` (mots-clés des groupes réservés au
+responsable) et `groupesExclus` (comptes à exclure de ces groupes). Usage local uniquement : ne jamais committer ces
 fichiers, `.gitignore` exclut les fichiers générés.
 
 ### Organisation

@@ -315,7 +315,7 @@ export function SettingsView() {
             <h3 className="grow">Zone de travail</h3>
           </div>
           <p className="small muted" style={{ marginBottom: 10 }}>
-            Départements où vous intervenez. Un client facturé en dehors (siège à Paris, Lille…) sans site connu n'apparaît ni sur la carte ni dans les sites.
+            Départements où vous intervenez. Un client facturé en dehors (siège à Paris, Lille…) sans adresse d'intervention connue n'apparaît pas sur la carte.
           </p>
           <input
             className="input"

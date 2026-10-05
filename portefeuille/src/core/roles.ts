@@ -17,10 +17,10 @@ export const ZONE_DEFAUT = [
 ];
 
 export const ROLE_LABEL: Record<AddressRole, string> = {
-  site: "Site d'intervention",
+  site: "Adresse d'intervention",
   facturation: "Adresse de facturation",
-  "hors-zone": "Facturation hors zone (site inconnu)",
-  regroupe: "Adresse regroupée (compte compté comme un seul site)",
+  "hors-zone": "Facturation hors zone",
+  regroupe: "Adresse regroupée",
 };
 
 export function computeRoles(

@@ -73,6 +73,10 @@ export interface Settings {
   rattacherComptes: boolean;
   /** Nombre de plus gros comptes du pool réservés au responsable. */
   grandsComptes: number;
+  /** Groupes réservés au responsable (mots-clés, ex. le nom d'un grand groupe) : tous leurs comptes lui reviennent. */
+  groupes?: string[];
+  /** Comptes qui portent le nom d'un groupe sans en faire partie (identifiant du compte). */
+  groupesExclus?: string[];
   /** « type » : équilibre par typologie ; « territoire » : secteurs géographiques. */
   mode: "type" | "territoire";
   /** Privilégie un commercial déjà présent dans la même ville (mode « type »). */

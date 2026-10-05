@@ -112,7 +112,7 @@ export function Duplicates({ openClient }: { openClient: (id: string) => void })
                       </div>
                       <b>{c.nom}</b>
                       <div className="small dim">
-                        N° {c.numero} · {c.type === "1" ? "donneur d'ordre" : "site"} · code {c.code || "–"}
+                        N° {c.numero} · {c.type === "1" ? "donneur d'ordre" : "adresse"} · code {c.code || "–"}
                       </div>
                       <div className="small" style={{ marginTop: 6 }}>
                         {c.adresse}
@@ -125,7 +125,7 @@ export function Duplicates({ openClient }: { openClient: (id: string) => void })
                       <div className="row small" style={{ marginTop: 8 }}>
                         <Who team={team} id={owner(id)} />
                         <span className="muted">{SEGMENT_BY_ID[c.segment].court}</span>
-                        {sites.get(id) ? <span className="pill">{sites.get(id)} sites</span> : null}
+                        {sites.get(id) ? <span className="pill">payeur</span> : null}
                       </div>
                     </label>
                   );

@@ -12,6 +12,9 @@ export interface Patch {
   segments?: Record<string, SegmentId>;
   /** Comptes à épingler chez un membre (prénom → numéros de payeur). */
   epingler?: Record<string, string[]>;
+  /** Groupes réservés au responsable (mots-clés) et comptes qui en portent le nom sans en faire partie. */
+  groupes?: string[];
+  groupesExclus?: string[];
 }
 import { deriveKey, seal } from "../src/lib/crypto";
 
@@ -23,6 +26,7 @@ export async function prefill(file: string, password: string, setup: TeamSetup, 
   let state = createState(clients, file.split(/[\\/]/).pop() ?? "export", setup);
   const known = new Set(state.clients.map((c) => c.id));
   if (patch.siteUnique) state.siteUnique = patch.siteUnique.filter((id) => known.has(id));
+  if (patch.groupes) state.settings = { ...state.settings, groupes: patch.groupes, groupesExclus: (patch.groupesExclus ?? []).filter((id) => known.has(id)) };
   if (patch.segments) state.segmentOverrides = Object.fromEntries(Object.entries(patch.segments).filter(([id]) => known.has(id)));
   if (patch.epingler) {
     for (const [nom, ids] of Object.entries(patch.epingler)) {

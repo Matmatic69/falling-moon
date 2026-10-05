@@ -605,6 +605,20 @@ input[type="range"] {
   color: var(--text);
   border-color: var(--text-2);
 }
+.linklike {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.linklike:hover {
+  color: var(--text);
+}
 .chip .dot {
   width: 8px;
   height: 8px;

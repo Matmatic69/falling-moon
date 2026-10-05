@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { groupKey, groupMatches } from "../../core/groups";
 import type { Account } from "../../core/types";
 import type { Nav } from "../App";
 import { AccountTable } from "../AccountTable";
@@ -20,6 +21,24 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
   const departedCode = Object.entries(s.libellesCodes).find(([, v]) => /\(parti\)/i.test(v))?.[0];
 
   const p = useMemo(() => proposal(), [proposal]);
+
+  // Groupes réservés : mots-clés, comptes qui en portent le nom, exclusions faites à la main.
+  const groupes = useMemo(() => [...new Set((s.groupes ?? []).map(groupKey).filter(Boolean))], [s.groupes]);
+  const exclus = useMemo(() => new Set(s.groupesExclus ?? []), [s.groupesExclus]);
+  // Comptes de chaque groupe, groupe par groupe (un compte peut porter deux noms, ex. une filiale et sa maison mère).
+  const members = useMemo(() => new Map(groupes.map((g) => [g, [...groupMatches(d.accounts.values(), d.byId, [g]).keys()]])), [d.accounts, d.byId, groupes]);
+  const countOf = (g: string) => (members.get(g) ?? []).filter((id) => !exclus.has(id)).length;
+  const [draft, setDraft] = useState("");
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const addGroup = () => {
+    const g = groupKey(draft);
+    if (!g) return;
+    if (!groupes.includes(g)) actions.settings({ groupes: [...groupes, g] });
+    setDraft("");
+  };
+  const removeGroup = (g: string) => actions.settings({ groupes: groupes.filter((x) => x !== g) });
+  const toggleExclu = (id: string) =>
+    actions.settings({ groupesExclus: exclus.has(id) ? [...exclus].filter((x) => x !== id) : [...exclus, id] });
   const current = d.stats;
 
   const accounts = useMemo(() => [...d.accounts.values()], [d.accounts]);
@@ -28,7 +47,7 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
     return {
       pool: accounts.filter((a) => has(a, (id) => !owner(id))),
       arnaud: departedCode ? accounts.filter((a) => a.codes.includes(departedCode)) : [],
-      grands: accounts.filter((a) => p.reasons[a.id] === "grand-compte"),
+      grands: accounts.filter((a) => p.reasons[a.id] === "grand-compte" || p.reasons[a.id] === "groupe"),
       tous: accounts,
       manuels: accounts.filter((a) => has(a, (id) => !!state.pins[id])),
     };
@@ -49,7 +68,8 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
         <div className="grow">
           <h1>Répartition</h1>
           <p>
-            Vous gardez vos clients ({responsable?.codes.join(", ")}) et les plus gros comptes ; le reste est partagé équitablement entre {receivers.map((r) => r.nom).join(" et ")}.
+            Vous gardez vos clients ({responsable?.codes.join(", ")}), vos groupes réservés et les plus gros comptes ; le reste est partagé équitablement entre{" "}
+            {receivers.map((r) => r.nom).join(" et ")}, en nombre de comptes.
           </p>
         </div>
       </div>
@@ -126,10 +146,15 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
             <li>
               <b>{responsable?.nom}</b> garde tous ses clients (code {responsable?.codes.join(", ")}) et vos choix manuels sont respectés.
             </li>
-            {s.rattacherComptes && <li>Un compte (payeur + ses sites) n'est jamais coupé : il reste entier chez celui qui en tient déjà une partie.</li>}
+            {s.rattacherComptes && <li>Un compte n'est jamais coupé : il reste entier chez celui qui en tient déjà une partie.</li>}
+            {groupes.length > 0 && (
+              <li>
+                Tous les comptes des groupes {groupes.join(", ")} reviennent à {responsable?.nom}.
+              </li>
+            )}
             {s.grandsComptes > 0 && (
               <li>
-                Les {s.grandsComptes} plus gros comptes encore libres (ceux qui ont le plus de sites) reviennent à {responsable?.nom}.
+                Les {s.grandsComptes} plus gros comptes encore libres reviennent aussi à {responsable?.nom}.
               </li>
             )}
             <li>
@@ -159,6 +184,35 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
                 : "Chacun reçoit un secteur géographique d'un seul tenant autour de Lyon, avec autant de comptes : moins de route."}
             </span>
           </div>
+          <div className="field">
+            <span>Groupes réservés à {responsable?.nom}</span>
+            <div className="row wrap" style={{ gap: 6 }}>
+              {groupes.map((g) => (
+                <span key={g} className="chip" aria-pressed="true" style={{ cursor: "default" }}>
+                  <button className="linklike" onClick={() => setOpenGroup(g)} title="Voir les comptes de ce groupe">
+                    {g} <span className="num muted">{fmt(countOf(g))}</span>
+                  </button>
+                  <button className="linklike" aria-label={`Retirer le groupe ${g}`} onClick={() => removeGroup(g)}>
+                    <Icon name="x" size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <form
+              className="row"
+              style={{ gap: 6 }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                addGroup();
+              }}
+            >
+              <input className="input" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ex. le nom d'un grand groupe" aria-label="Nouveau groupe" />
+              <button className="btn sm" type="submit" disabled={!groupKey(draft)}>
+                Ajouter
+              </button>
+            </form>
+            <span className="small muted">Tous les comptes dont le nom (ou celui du payeur) contient ce mot lui reviennent. Cliquez sur un groupe pour en exclure un compte.</span>
+          </div>
           <label className="field">
             <span>
               Plus gros comptes du pool réservés à {responsable?.nom} : <b>{s.grandsComptes}</b>
@@ -185,7 +239,7 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
           options={[
             ["pool", `À répartir (${fmt(lists.pool.length)})`],
             ...(departedCode ? [["arnaud", `${s.libellesCodes[departedCode].replace(/\s*\(parti\)/i, "")} · code ${departedCode} (${fmt(lists.arnaud.length)})`] as [Tab, string]] : []),
-            ["grands", `Grands comptes (${fmt(lists.grands.length)})`],
+            ["grands", `Groupes & grands comptes (${fmt(lists.grands.length)})`],
             ["manuels", `Choix manuels (${fmt(lists.manuels.length)})`],
             ["tous", "Tous"],
           ]}
@@ -204,7 +258,7 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
         <div className="banner" style={{ marginBottom: 12 }}>
           <Icon name="star" />
           <span className="small">
-            Les {s.grandsComptes} plus gros comptes encore libres : ils vous reviennent dans la proposition. Réglez leur nombre avec le curseur ci-dessus.
+            Les comptes des groupes réservés et les {s.grandsComptes} plus gros comptes encore libres : ils vous reviennent dans la proposition. Réglez-les dans les règles ci-dessus.
           </span>
         </div>
       )}
@@ -216,6 +270,40 @@ export function Distribution({ tab: initialTab, openClient }: { tab?: string; go
         reasons={p.reasons}
         emptyText={tab === "pool" ? "Tout le portefeuille est réparti." : "Aucun compte"}
       />
+
+      {openGroup && (
+        <Modal
+          title={`Groupe ${openGroup}`}
+          onClose={() => setOpenGroup(null)}
+          foot={
+            <button className="btn primary" onClick={() => setOpenGroup(null)}>
+              Fermer
+            </button>
+          }
+        >
+          <p className="dim small" style={{ marginBottom: 10 }}>
+            Comptes dont le nom, ou celui du payeur, contient « {openGroup} ». Décochez ceux qui ne font pas partie du groupe : ils seront répartis normalement.
+          </p>
+          <div className="col" style={{ gap: 2 }}>
+            {(members.get(openGroup) ?? [])
+              .map((id) => d.accounts.get(id)!)
+              .sort((x, y) => x.nom.localeCompare(y.nom))
+              .map((a) => (
+                <div key={a.id} className="row" style={{ padding: "6px 0", borderTop: "1px solid var(--line)" }}>
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <b className="ellipsis" style={{ display: "block" }}>
+                      {a.nom || "Client confidentiel"}
+                    </b>
+                    <span className="small muted">
+                      {a.cp} {a.ville}
+                    </span>
+                  </span>
+                  <Switch checked={!exclus.has(a.id)} onChange={() => toggleExclu(a.id)} label="Dans le groupe" />
+                </div>
+              ))}
+          </div>
+        </Modal>
+      )}
 
       {confirmReset && (
         <Modal
