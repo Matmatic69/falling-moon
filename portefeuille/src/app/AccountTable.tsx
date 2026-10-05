@@ -42,7 +42,7 @@ export function AccountTable({
   const [q, setQ] = useState("");
   const [segment, setSegment] = useState<SegmentId | "">("");
   const [dept, setDept] = useState("");
-  const [sort, setSort] = useState<Sort>("taille");
+  const [sort, setSort] = useState<Sort>(isAdmin ? "taille" : "nom");
   const [limit, setLimit] = useState(60);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
@@ -147,7 +147,7 @@ export function AccountTable({
           ))}
         </select>
         <select className="select" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Tri">
-          <option value="taille">Plus gros d'abord</option>
+          {isAdmin && <option value="taille">Plus gros d'abord</option>}
           <option value="nom">Nom A→Z</option>
           <option value="ville">Ville A→Z</option>
         </select>

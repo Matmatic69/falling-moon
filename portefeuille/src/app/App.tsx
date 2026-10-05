@@ -145,7 +145,7 @@ export function App() {
   const view = (() => {
     switch (route.view) {
       case "tableau":
-        return <Dashboard go={go} openClient={setClient} />;
+        return <Dashboard go={go} />;
       case "carte":
         return <MapView initialOwner={route.owner} openClient={setClient} />;
       case "portefeuille":

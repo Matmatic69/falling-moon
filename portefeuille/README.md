@@ -19,7 +19,7 @@ dérivée par PBKDF2). Aucune donnée client n'est stockée dans ce dépôt.
 | Écran | Rôle |
 |---|---|
 | Accueil | Une bulle animée par personne, ses comptes en orbite (taille = nombre de comptes), la bulle grise des comptes à répartir. Clic sur une bulle → son portefeuille ; clic sur un client → sa fiche. |
-| Tableau de bord | En nombre de comptes : typologies × propriétaire, départements, villes, 15 plus gros comptes, codes ERP d'origine (où sont partis les clients du commercial parti), qualité des données. |
+| Tableau de bord | En nombre de comptes : typologies × propriétaire, départements, villes, codes ERP d'origine (où sont partis les clients du commercial parti), qualité des données. |
 | Carte | Carte hors-ligne (départements, communes du Rhône) des lieux d'intervention de chaque compte, colorés par propriétaire, regroupés en anneaux quand on dézoome ; filtres par personne et typologie ; adresses de facturation en option. |
 | Recherche (Ctrl + K) | « À qui appartient ce client ? » : nom, ville, n° client, téléphone, e-mail, SIREN. Recherche avancée avec filtres et export Excel. |
 | Répartition | Proposition automatique réglable (groupes réservés au responsable, grands comptes, partage), aperçu chiffré avant d'appliquer, attribution en un clic ou par lot, onglet « Code … (parti) » pour reprendre les clients du commercial parti qu'on gère encore. |

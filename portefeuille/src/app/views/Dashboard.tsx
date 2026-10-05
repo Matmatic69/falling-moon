@@ -17,8 +17,8 @@ interface Row {
 
 const POOL = "";
 
-export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string) => void }) {
-  const { state, d, owner, duplicates, isAdmin } = useStore();
+export function Dashboard({ go }: { go: Nav }) {
+  const { state, d, duplicates, isAdmin } = useStore();
   const team = state.team;
   const [tip, setTip] = useState<{ x: number; y: number; row: Row } | null>(null);
   const owners = [...team.map((m) => m.id), POOL];
@@ -55,7 +55,6 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
   const noContact = d.active.filter((c) => !c.tel && !c.mail && !c.portable).length;
   const dups = isAdmin ? duplicates().length : 0;
 
-  const topAccounts = useMemo(() => [...accts].sort((a, b) => b.score - a.score || a.nom.localeCompare(b.nom)).slice(0, 15), [accts]);
 
   const codes = useMemo(() => {
     const m = new Map<string, Map<string, number>>();
@@ -197,46 +196,6 @@ export function Dashboard({ go, openClient }: { go: Nav; openClient: (id: string
               </tr>
             </tbody>
           </table>
-        </div>
-
-        <div className="card flush span2">
-          <div className="card-head" style={{ padding: "18px 18px 0" }}>
-            <div className="grow">
-              <h3>Les 15 plus gros comptes</h3>
-            </div>
-          </div>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Compte</th>
-                  <th className="hide-mobile">Typologie</th>
-                  <th>Propriétaire</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topAccounts.map((a) => {
-                  const os = new Set(a.clientIds.map((id) => owner(id) ?? ""));
-                  return (
-                    <tr key={a.id} className="clickable" onClick={() => openClient(a.id)}>
-                      <td>
-                        <b>{a.nom || "Client confidentiel"}</b>
-                        <div className="small muted">{a.ville}</div>
-                      </td>
-                      <td className="hide-mobile dim">{SEGMENTS.find((s) => s.id === a.segment)?.court}</td>
-                      <td>
-                        <div className="row" style={{ gap: 4 }}>
-                          {[...os].map((o) => (
-                            <Who key={o} team={team} id={o || undefined} />
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
         </div>
 
         <div className="card">
