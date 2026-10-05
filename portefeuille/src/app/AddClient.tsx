@@ -5,6 +5,7 @@ import { classify, SEGMENTS } from "../core/segments";
 import type { SegmentId } from "../core/types";
 import { fingerprint } from "../lib/crypto";
 import { Icon } from "./icons";
+import { deposer } from "./demandes";
 import { newClient, useStore } from "./store";
 import { Modal, useToast, Who } from "./ui";
 
@@ -13,7 +14,8 @@ import { Modal, useToast, Who } from "./ui";
  * s'il appartient à quelqu'un d'autre, un commercial est bloqué et invité à consulter le responsable.
  */
 export function AddClient({ initialName, onClose, openClient }: { initialName: string; onClose: () => void; openClient: (id: string) => void }) {
-  const { state, d, owner, isAdmin, session, actions } = useStore();
+  const store = useStore();
+  const { state, d, owner, isAdmin, session, actions } = store;
   const toast = useToast();
   const team = state.team;
   const responsable = team.find((m) => m.responsable);
@@ -69,6 +71,12 @@ export function AddClient({ initialName, onClose, openClient }: { initialName: s
       session.me,
       locate,
     );
+    if (session.equipe) {
+      deposer(store, { type: "ajout", client: c })
+        .then(() => (toast(`Demande d'ajout de « ${c.nom} » envoyée à ${responsable?.nom} (onglet Demandes)`), onClose()))
+        .catch((e) => toast(e instanceof Error ? e.message : "Envoi impossible"));
+      return;
+    }
     actions.addClient(c, isAdmin ? assignTo || null : session.me);
     toast(isAdmin ? `« ${c.nom} » ajouté` : `« ${c.nom} » ajouté à ton portefeuille, en attente de validation par ${responsable?.nom}`);
     onClose();
@@ -87,7 +95,7 @@ export function AddClient({ initialName, onClose, openClient }: { initialName: s
             Annuler
           </button>
           <button className="btn primary" disabled={!valid} onClick={submit}>
-            <Icon name="plus" size={16} /> {isAdmin ? "Ajouter" : "Ajouter à mon portefeuille"}
+            <Icon name="plus" size={16} /> {isAdmin ? "Ajouter" : session.equipe ? "Envoyer la demande d'ajout" : "Ajouter à mon portefeuille"}
           </button>
         </>
       }

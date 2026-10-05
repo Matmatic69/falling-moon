@@ -1,5 +1,5 @@
 import type { Envelope } from "./crypto";
-import type { Role } from "../core/types";
+import type { PortfolioState, Role } from "../core/types";
 
 /** Bloc de données en clair autour de l'enveloppe chiffrée (de quoi afficher l'écran de déverrouillage). */
 export interface FileMeta {
@@ -11,6 +11,8 @@ export interface FileMeta {
   fileId: string;
   savedAt: string;
   env: Envelope;
+  /** Fichier partagé : partie lisible sans mot de passe (consultation par l'équipe) et clé des demandes. */
+  team?: { k: string; state: PortfolioState };
 }
 
 export function readEmbedded(): FileMeta | null {

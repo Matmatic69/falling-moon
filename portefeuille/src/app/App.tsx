@@ -10,6 +10,7 @@ import { Distribution } from "./views/Distribution";
 import { Duplicates } from "./views/Duplicates";
 import { SettingsView } from "./views/Settings";
 import { Ajouts } from "./views/Ajouts";
+import { Demandes } from "./views/Demandes";
 import { SearchView } from "./views/SearchView";
 import { SearchPalette } from "./SearchPalette";
 import { ClientDrawer } from "./ClientDrawer";
@@ -26,6 +27,7 @@ export type Route =
   | { view: "repartition"; tab?: string }
   | { view: "doublons" }
   | { view: "ajouts" }
+  | { view: "demandes" }
   | { view: "reglages" };
 
 export type Nav = (r: Route) => void;
@@ -36,6 +38,7 @@ function parseHash(): Route {
     case "tableau":
     case "doublons":
     case "ajouts":
+    case "demandes":
     case "reglages":
       return { view };
     case "carte":
@@ -58,7 +61,9 @@ function toHash(r: Route): string {
 
 export function App() {
   const store = useStore();
-  const { state, isAdmin, session, d, dirty, savedLocally, duplicates, undo, canUndo } = store;
+  const { state, isAdmin, session, setSession, d, dirty, savedLocally, duplicates, undo, canUndo } = store;
+  const equipe = !!session.equipe;
+  const partage = equipe || !!state.settings.partage;
   const toast = useToast();
   const [route, setRoute] = useState<Route>(parseHash);
   const [palette, setPalette] = useState(false);
@@ -82,7 +87,8 @@ export function App() {
   // Un commercial ne voit pas les écrans de gestion.
   useEffect(() => {
     if (!isAdmin && ["repartition", "doublons", "reglages"].includes(route.view)) go({ view: "accueil" });
-  }, [isAdmin, route.view, go]);
+    if (equipe && route.view === "ajouts") go({ view: "demandes" });
+  }, [isAdmin, equipe, route.view, go]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -136,7 +142,8 @@ export function App() {
     { r: { view: "recherche" }, label: "Recherche avancée", icon: "search" },
     { r: { view: "repartition" }, label: "Répartition", icon: "shuffle", admin: true, badge: d.pool || undefined },
     { r: { view: "doublons" }, label: "Doublons", icon: "copy", admin: true, badge: dupCount || undefined },
-    { r: { view: "ajouts" }, label: isAdmin ? "Ajouts reçus" : "Mes ajouts", icon: "inbox", badge: pending || undefined },
+    ...(partage ? [{ r: { view: "demandes" } as Route, label: "Demandes", icon: "inbox" as IconName }] : []),
+    ...(equipe ? [] : [{ r: { view: "ajouts" } as Route, label: isAdmin ? "Ajouts reçus" : "Mes ajouts", icon: "inbox" as IconName, badge: pending || undefined }]),
     { r: { view: "reglages" }, label: "Réglages & fichiers", icon: "settings", admin: true },
   ];
   const visibleNav = nav.filter((n) => isAdmin || !n.admin);
@@ -158,6 +165,8 @@ export function App() {
         return <Duplicates openClient={setClient} />;
       case "ajouts":
         return <Ajouts openClient={setClient} />;
+      case "demandes":
+        return <Demandes openClient={setClient} />;
       case "reglages":
         return <SettingsView />;
       default:
@@ -176,7 +185,7 @@ export function App() {
           </div>
           <div>
             <b>Portefeuille</b>
-            <span>{isAdmin ? "Espace responsable" : `Fichier de ${me?.nom ?? ""}`}</span>
+            <span>{isAdmin ? "Espace responsable" : equipe ? "Consultation" : `Fichier de ${me?.nom ?? ""}`}</span>
           </div>
         </div>
         {visibleNav.slice(0, 4).map((n) => (
@@ -201,17 +210,44 @@ export function App() {
           </button>
         ))}
         <div className="sidebar-foot">
-          <button className="btn" onClick={() => void saveSnapshot(store).then((ok) => ok && toast("Fichier sauvegardé — gardez-le à l'abri"))}>
-            <Icon name="download" size={16} /> {isAdmin ? "Sauvegarder le fichier" : "Garder une copie"}
-            {dirty && isAdmin && <span className="badge warn">•</span>}
-          </button>
+          {equipe ? (
+            <>
+              <label className="field">
+                <span className="small muted">Je suis</span>
+                <select
+                  className="select"
+                  value={session.me}
+                  onChange={(e) => {
+                    lsSet("pf-moi", e.target.value);
+                    setSession({ ...session, me: e.target.value });
+                  }}
+                >
+                  {state.team.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nom}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="btn" onClick={() => window.dispatchEvent(new Event("pf-admin"))}>
+                <Icon name="lock" size={16} /> Mode responsable
+              </button>
+            </>
+          ) : (
+            <button className="btn" onClick={() => void saveSnapshot(store).then((ok) => ok && toast("Fichier sauvegardé — gardez-le à l'abri"))}>
+              <Icon name="download" size={16} /> {isAdmin ? "Sauvegarder le fichier" : "Garder une copie"}
+              {dirty && isAdmin && <span className="badge warn">•</span>}
+            </button>
+          )}
           <div className="row">
             <button className="btn ghost sm grow" onClick={toggleTheme} aria-label="Changer de thème">
               <Icon name={theme === "light" ? "moon" : "sun"} size={15} /> {theme === "light" ? "Sombre" : "Clair"}
             </button>
-            <button className="btn ghost sm grow" onClick={() => location.reload()} title="Verrouiller (le mot de passe sera redemandé)">
-              <Icon name="lock" size={15} /> Verrouiller
-            </button>
+            {!equipe && (
+              <button className="btn ghost sm grow" onClick={() => location.reload()} title="Verrouiller (le mot de passe sera redemandé)">
+                <Icon name="lock" size={15} /> Verrouiller
+              </button>
+            )}
           </div>
         </div>
       </aside>
@@ -229,10 +265,16 @@ export function App() {
               <Icon name="undo" size={17} />
             </button>
           )}
-          <span className="pill hide-mobile" title="Copie de travail chiffrée dans ce navigateur">
-            <Icon name={savedLocally === false ? "alert" : "lock"} size={12} />
-            {savedLocally === false ? "Non mémorisé ici : sauvegardez le fichier" : dirty ? "Enregistré dans ce navigateur" : "Chiffré"}
-          </span>
+          {equipe ? (
+            <span className="pill hide-mobile" title="Les changements passent par l'onglet Demandes">
+              <Icon name="info" size={12} /> Consultation · {me?.nom}
+            </span>
+          ) : (
+            <span className="pill hide-mobile" title="Copie de travail chiffrée dans ce navigateur">
+              <Icon name={savedLocally === false ? "alert" : "lock"} size={12} />
+              {savedLocally === false ? "Non mémorisé ici : sauvegardez le fichier" : dirty ? "Enregistré dans ce navigateur" : "Chiffré"}
+            </span>
+          )}
           <button className="btn primary" onClick={() => setAdding("")}>
             <Icon name="plus" size={16} /> <span className="hide-mobile">Ajouter un client</span>
           </button>
@@ -250,7 +292,7 @@ export function App() {
             [{ view: "carte" }, "Carte", "map"],
             [{ view: "recherche" }, "Recherche", "search"],
             [{ view: "portefeuille", id: session.me }, isAdmin ? "Mes clients" : "Mes clients", "users"],
-            isAdmin ? [{ view: "repartition" }, "Répartir", "shuffle"] : [{ view: "ajouts" }, "Ajouts", "inbox"],
+            isAdmin ? [{ view: "repartition" }, "Répartir", "shuffle"] : equipe ? [{ view: "demandes" }, "Demandes", "inbox"] : [{ view: "ajouts" }, "Ajouts", "inbox"],
           ] as [Route, string, IconName][]
         ).map(([r, label, icon]) => (
           <button key={label} aria-current={isActive(r) ? "page" : undefined} onClick={() => go(r)}>

@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { deposer } from "./demandes";
 import { REASON_LABEL } from "../core/distribute";
 import { ROLE_LABEL } from "../core/roles";
 import { SEGMENTS, SEGMENT_BY_ID } from "../core/segments";
@@ -9,7 +10,11 @@ import { useStore } from "./store";
 import { dateFr, fmt, memberVar, Switch, useEscape, useToast, Who } from "./ui";
 
 export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose: () => void; openClient: (id: string) => void; go: Nav }) {
-  const { state, d, owner, isAdmin, actions, proposal, session } = useStore();
+  const store = useStore();
+  const { state, d, owner, isAdmin, actions, proposal, session } = store;
+  const [demande, setDemande] = useState<"" | "attribution" | "modification">("");
+  const [msg, setMsg] = useState("");
+  const [sending, setSending] = useState(false);
   const toast = useToast();
   useEscape(onClose);
   const team = state.team;
@@ -23,7 +28,8 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
   const o = owner(c.id);
   const masked = !c.nom;
   const mine = o === session.me;
-  const contactsHidden = !isAdmin && !mine;
+  // Fichier partagé : toute l'équipe consulte les coordonnées, sans pouvoir les modifier.
+  const contactsHidden = !isAdmin && !mine && !session.equipe;
   const tel = c.tel || c.portable;
 
   const setOwner = (to: string | null, whole: boolean) => {
@@ -76,6 +82,51 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
               </span>
             )}
           </div>
+          {session.equipe && (
+            <div className="col" style={{ gap: 8 }}>
+              <div className="row wrap" style={{ gap: 6 }}>
+                {!mine && (
+                  <button className="btn sm" aria-pressed={demande === "attribution"} onClick={() => setDemande(demande === "attribution" ? "" : "attribution")}>
+                    <Icon name="users" size={14} /> Demander ce client
+                  </button>
+                )}
+                <button className="btn sm" aria-pressed={demande === "modification"} onClick={() => setDemande(demande === "modification" ? "" : "modification")}>
+                  <Icon name="info" size={14} /> Signaler une correction
+                </button>
+              </div>
+              {demande && (
+                <div className="col" style={{ gap: 6 }}>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    autoFocus
+                    placeholder={demande === "attribution" ? "Pourquoi ce client devrait te revenir ?" : "Que faut-il corriger ? (adresse, téléphone, typologie…)"}
+                    value={msg}
+                    onChange={(e) => setMsg(e.target.value)}
+                  />
+                  <button
+                    className="btn sm primary"
+                    disabled={sending || (demande === "modification" && !msg.trim())}
+                    onClick={async () => {
+                      setSending(true);
+                      try {
+                        await deposer(store, { type: demande, clientId: acct?.id ?? c.id, clientNom: (acct && d.byId.get(acct.id)?.nom) || c.nom, message: msg.trim() || undefined });
+                        toast(`Demande envoyée à ${team.find((m) => m.responsable)?.nom} (onglet Demandes)`);
+                        setDemande("");
+                        setMsg("");
+                      } catch (e) {
+                        toast(e instanceof Error ? e.message : "Envoi impossible");
+                      } finally {
+                        setSending(false);
+                      }
+                    }}
+                  >
+                    Envoyer la demande
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {!isAdmin && o && !mine && (
             <div className="banner">
               <Icon name="info" />

@@ -85,6 +85,8 @@ export interface Settings {
   libellesCodes: Record<string, string>;
   /** Départements de la zone de travail (absent = Auvergne-Rhône-Alpes et départements voisins). */
   zone?: string[];
+  /** Fichier partagé : il s'ouvre sans mot de passe en lecture pour l'équipe (sans coordonnées) ; la gestion reste sous mot de passe. */
+  partage?: boolean;
 }
 
 export interface JournalEntry {
@@ -128,6 +130,29 @@ export interface PortfolioState {
   siteUnique?: string[];
   /** Sociétés à démarcher, confiées à chacun (ne comptent pas dans les comptes clients). */
   prospects?: Prospect[];
+  /** Clé (base64) qui chiffre les demandes déposées dans le dossier partagé ; recopiée dans la partie équipe du fichier. */
+  teamKey?: string;
+}
+
+/** Demande déposée par un membre de l'équipe dans le dossier partagé ; seul le responsable la tranche. */
+export interface Demande {
+  id: string;
+  type: "ajout" | "attribution" | "modification";
+  par: string;
+  le: string;
+  /** Ajout : le client proposé. */
+  client?: Client;
+  /** Attribution ou modification : le client concerné. */
+  clientId?: string;
+  clientNom?: string;
+  message?: string;
+}
+
+export interface Decision {
+  id: string;
+  statut: "acceptee" | "refusee";
+  le: string;
+  motif?: string;
 }
 
 /** Une société à démarcher (pas encore cliente) confiée à un commercial : hors comptes clients. */

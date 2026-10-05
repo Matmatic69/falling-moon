@@ -20,6 +20,10 @@ export interface Session {
   detail?: "nom" | "masque";
   fpSalt?: string;
   empreintes?: Empreinte[];
+  /** Fichier partagé ouvert sans mot de passe : consultation seule, les changements passent par des demandes. */
+  equipe?: boolean;
+  /** Clé des demandes du dossier partagé. */
+  teamKey?: string;
 }
 
 export interface Derived {

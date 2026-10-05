@@ -2,6 +2,7 @@ import { fingerprintKeys } from "../core/match";
 import { randomId } from "../core/state";
 import type { Ajout, Client, Empreinte, Payload, PortfolioState } from "../core/types";
 import { deriveKey, fingerprint, open, rawKey, seal, toB64, randomBytes, type Envelope } from "../lib/crypto";
+import { publishFile, ready, savedFolder } from "../lib/shared";
 import { buildHtml, download, slug, today, type FileMeta } from "../lib/file";
 import type { Session, useStore } from "./store";
 
@@ -20,10 +21,53 @@ function currentPayload(state: PortfolioState, session: Session): Payload {
   } as Payload;
 }
 
+/** Partie du fichier partagé lisible par toute l'équipe : la répartition et les fiches, sans les réglages ni l'historique. */
+export function teamLayer(state: PortfolioState): { k: string; state: PortfolioState } {
+  const k = state.teamKey ?? toB64(randomBytes(32));
+  return { k, state: { ...state, teamKey: undefined, journal: [], returnKeys: {}, ajouts: [], ignores: [] } };
+}
+
+export const TEAM_FILE = "Portefeuille-equipe.html";
+
+/** Fichier responsable (chiffré), avec la partie équipe si le partage est activé. */
+async function responsableHtml(state: PortfolioState, session: Session): Promise<string> {
+  const env = await seal(currentPayload(state, session), session.key!.key, { salt: session.key!.salt, iter: session.key!.iter });
+  const meta: FileMeta = { app: "portefeuille", v: 1, role: "responsable", fileId: state.fileId, savedAt: new Date().toISOString(), env };
+  if (state.settings.partage) meta.team = teamLayer(state);
+  return buildHtml(meta, "Portefeuille clients");
+}
+
+/** Publie le fichier partagé dans le dossier OneDrive (ou le télécharge si aucun dossier n'est connecté). */
+export async function publishTeam(store: Store): Promise<"dossier" | "telechargement" | false> {
+  const { state, session } = store;
+  if (!session.key || session.role !== "responsable") return false;
+  let s = state;
+  if (!s.teamKey || !s.settings.partage) {
+    const k = s.teamKey ?? toB64(randomBytes(32));
+    store.update("Partage du fichier activé", (x) => ({ ...x, teamKey: k, settings: { ...x.settings, partage: true } }));
+    s = { ...s, teamKey: k, settings: { ...s.settings, partage: true } };
+  }
+  const html = await responsableHtml(s, session);
+  const dir = await savedFolder();
+  if (dir && (await ready(dir, true))) {
+    await publishFile(dir, TEAM_FILE, html);
+    store.markBackedUp();
+    return "dossier";
+  }
+  download(TEAM_FILE, html);
+  store.markBackedUp();
+  return "telechargement";
+}
+
 /** Télécharge le fichier HTML à jour (mêmes données chiffrées, même mot de passe). */
 export async function saveSnapshot(store: Store): Promise<boolean> {
   const { state, session } = store;
   if (!session.key) return false;
+  if (session.role === "responsable") {
+    download(state.settings.partage ? TEAM_FILE : `Portefeuille-clients-${today()}.html`, await responsableHtml(state, session));
+    store.markBackedUp();
+    return true;
+  }
   const env = await seal(currentPayload(state, session), session.key.key, { salt: session.key.salt, iter: session.key.iter });
   const me = state.team.find((m) => m.id === session.me);
   const meta: FileMeta = {
@@ -35,8 +79,7 @@ export async function saveSnapshot(store: Store): Promise<boolean> {
     savedAt: new Date().toISOString(),
     env,
   };
-  const name = session.role === "responsable" ? `Portefeuille-clients-${today()}.html` : `Portefeuille-${slug(me?.nom ?? "commercial")}-${today()}.html`;
-  download(name, buildHtml(meta, session.role === "responsable" ? "Portefeuille clients" : `Portefeuille — ${me?.nom ?? ""}`));
+  download(`Portefeuille-${slug(me?.nom ?? "commercial")}-${today()}.html`, buildHtml(meta, `Portefeuille — ${me?.nom ?? ""}`));
   store.markBackedUp();
   return true;
 }

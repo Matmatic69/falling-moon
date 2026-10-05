@@ -241,7 +241,7 @@ interface Stored {
 }
 
 /** Ouverture d'un fichier existant : mot de passe, puis reprise de la copie de travail locale si plus récente. */
-export function Unlock({ meta, onReady }: { meta: FileMeta; onReady: (o: Opened) => void }) {
+export function Unlock({ meta, onReady, onCancel }: { meta: FileMeta; onReady: (o: Opened) => void; onCancel?: () => void }) {
   const [pw, setPw] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -304,7 +304,11 @@ export function Unlock({ meta, onReady }: { meta: FileMeta; onReady: (o: Opened)
         <Brand />
         {!cryptoAvailable() && <NoCrypto />}
         <h2>{meta.role === "responsable" ? "Espace responsable" : `Portefeuille de ${meta.pour ?? ""}`}</h2>
-        <p className="dim">Fichier enregistré le {dateFr(meta.savedAt, true)}. Saisissez le mot de passe pour déchiffrer les données.</p>
+        <p className="dim">
+          {meta.team
+            ? "La gestion (attributions, demandes, réglages) est réservée au responsable. Saisissez votre mot de passe."
+            : `Fichier enregistré le ${dateFr(meta.savedAt, true)}. Saisissez le mot de passe pour déchiffrer les données.`}
+        </p>
         <label className="field">
           <span>Mot de passe</span>
           <input className="input" type="password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} />
@@ -317,6 +321,11 @@ export function Unlock({ meta, onReady }: { meta: FileMeta; onReady: (o: Opened)
         <button className="btn primary" disabled={!pw || busy || !cryptoAvailable()}>
           {busy ? <div className="spin" /> : <Icon name="lock" size={16} />} Ouvrir
         </button>
+        {onCancel && (
+          <button type="button" className="btn ghost" onClick={onCancel}>
+            Retour à la consultation
+          </button>
+        )}
       </form>
     </div>
   );

@@ -17,8 +17,10 @@ export interface Patch {
   groupesExclus?: string[];
   /** Sociétés à démarcher : prénom du commercial qui s'en occupe. */
   prospects?: { nom: string; ville: string; cp?: string; segment: SegmentId; owner: string; note?: string }[];
+  /** Fichier partagé : consultation sans mot de passe pour l'équipe, gestion sous mot de passe. */
+  partage?: boolean;
 }
-import { deriveKey, seal } from "../src/lib/crypto";
+import { deriveKey, randomBytes, seal, toB64 } from "../src/lib/crypto";
 
 /** Prépare les données chiffrées d'un fichier responsable à partir d'un export ERP (usage local uniquement). */
 export async function prefill(file: string, password: string, setup: TeamSetup, appliquer = false, patch: Patch = {}) {
@@ -69,9 +71,15 @@ export async function prefill(file: string, password: string, setup: TeamSetup, 
     ];
     console.log(`  ${sure.length} groupes de doublons fusionnés, proposition appliquée`);
   }
+  if (patch.partage) {
+    state.settings = { ...state.settings, partage: true };
+    state.teamKey = toB64(randomBytes(32));
+  }
   const sk = await deriveKey(password);
   const payload: Payload = { role: "responsable", state };
   const env = await seal(payload, sk.key, { salt: sk.salt, iter: sk.iter });
-  console.log(`  ${report.lignes} lignes → ${report.clients} clients`);
-  return { app: "portefeuille", v: 1, role: "responsable", fileId: state.fileId, savedAt: state.savedAt, env };
+  console.log(`  ${report.lignes} lignes → ${report.clients} clients${patch.partage ? " · fichier partagé" : ""}`);
+  // Même découpage que l'application (files.ts → teamLayer) : partie équipe sans réglages ni historique.
+  const team = patch.partage ? { k: state.teamKey!, state: { ...state, teamKey: undefined, journal: [], returnKeys: {}, ajouts: [], ignores: [] } } : undefined;
+  return { app: "portefeuille", v: 1, role: "responsable", fileId: state.fileId, savedAt: state.savedAt, env, ...(team ? { team } : {}) };
 }
