@@ -49,10 +49,12 @@ export function Dashboard({ go }: { go: Nav }) {
 
   const total = d.accounts.size;
   const located = deptRows.reduce((s, r) => s + r.total, 0);
-  const fiches = d.active.length;
   const merged = Object.keys(state.merges).length;
-  const estimated = d.active.filter((c) => c.segmentSource === "defaut").length;
-  const noContact = d.active.filter((c) => !c.tel && !c.mail && !c.portable).length;
+  // En comptes : la fiche du payeur fait foi.
+  const head = (a: (typeof accts)[number]) => d.byId.get(a.id);
+  const estimated = accts.filter((a) => head(a)?.segmentSource === "defaut").length;
+  const noContact = accts.filter((a) => a.clientIds.every((id) => { const c = d.byId.get(id); return !c?.tel && !c?.mail && !c?.portable; })).length;
+  const added = accts.filter((a) => head(a)?.ajout).length;
   const dups = isAdmin ? duplicates().length : 0;
 
 
@@ -175,23 +177,23 @@ export function Dashboard({ go }: { go: Nav }) {
                 <td />
               </tr>
               <tr>
-                <td>Fiches à typologie estimée</td>
+                <td>Comptes à typologie estimée</td>
                 <td className="r num">{fmt(estimated)}</td>
-                <td className="r num muted">{pct(estimated / Math.max(1, fiches))}</td>
+                <td className="r num muted">{pct(estimated / Math.max(1, total))}</td>
               </tr>
               <tr>
-                <td>Corrigées à la main</td>
+                <td>Typologies corrigées à la main</td>
                 <td className="r num">{fmt(Object.keys(state.segmentOverrides).length)}</td>
                 <td />
               </tr>
               <tr>
-                <td>Fiches sans téléphone ni e-mail</td>
+                <td>Comptes sans téléphone ni e-mail</td>
                 <td className="r num">{fmt(noContact)}</td>
-                <td className="r num muted">{pct(noContact / Math.max(1, fiches))}</td>
+                <td className="r num muted">{pct(noContact / Math.max(1, total))}</td>
               </tr>
               <tr>
                 <td>Clients ajoutés dans l'outil</td>
-                <td className="r num">{fmt(d.active.filter((c) => c.ajout).length)}</td>
+                <td className="r num">{fmt(added)}</td>
                 <td />
               </tr>
             </tbody>

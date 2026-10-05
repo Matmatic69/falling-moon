@@ -7,7 +7,7 @@ import type { SegmentId } from "../core/types";
 import type { Nav } from "./App";
 import { Icon } from "./icons";
 import { useStore } from "./store";
-import { dateFr, fmt, memberVar, Switch, useEscape, useToast, Who } from "./ui";
+import { dateFr, memberVar, Switch, useEscape, useToast, Who } from "./ui";
 
 export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose: () => void; openClient: (id: string) => void; go: Nav }) {
   const store = useStore();
@@ -136,7 +136,7 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
 
           {isAdmin && (
             <div className="col" style={{ gap: 8 }}>
-              <span className="small muted">Attribuer {acct && acct.clientIds.length > 1 ? `le compte entier (${acct.clientIds.length} adresses)` : "ce client"}</span>
+              <span className="small muted">Attribuer {acct && acct.clientIds.length > 1 ? "le compte entier" : "ce client"}</span>
               <div className="row wrap" style={{ gap: 6 }}>
                 {team.map((m) => (
                   <button key={m.id} className="btn sm" disabled={o === m.id && (!acct || acct.clientIds.every((x) => owner(x) === m.id))} onClick={() => setOwner(m.id, true)}>
@@ -302,9 +302,6 @@ export function ClientDrawer({ id, onClose, openClient }: { id: string; onClose:
             <div className="col" style={{ gap: 6 }}>
               <div className="row">
                 <h3 className="grow">Compte « {d.byId.get(acct.id)?.nom || "confidentiel"} »</h3>
-                <span className="muted small">
-                  {fmt(acct.clientIds.length)} adresses
-                </span>
               </div>
               {isAdmin && (
                 <Switch

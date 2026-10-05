@@ -182,7 +182,6 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
           <b>
             {fmt(new Set(results.map(({ c }) => d.acctOf.get(c.id) ?? c.id)).size)} compte(s)
           </b>
-          <span className="small muted">({fmt(results.length)} adresse(s))</span>
         </div>
         <div className="table-wrap" style={{ maxHeight: "none" }}>
           <table className="table">
