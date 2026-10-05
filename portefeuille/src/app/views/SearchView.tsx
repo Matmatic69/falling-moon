@@ -21,7 +21,6 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
   const [segment, setSegment] = useState<SegmentId | "">("");
   const [dept, setDept] = useState("");
   const [code, setCode] = useState("");
-  const [type, setType] = useState<"" | "facturation" | "site">("site");
   const [origine, setOrigine] = useState<"" | "erp" | "ajout">("");
   const [sort, setSort] = useState<Sort>("pertinence");
   const [limit, setLimit] = useState(100);
@@ -45,11 +44,9 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
     const list = base.filter(({ c }) => {
       const o = owner(c.id) ?? "";
       if (!owners.has(o)) return false;
-      if (segment && c.segment !== segment) return false;
+      if (segment && (d.accounts.get(d.acctOf.get(c.id) ?? c.id)?.segment ?? c.segment) !== segment) return false;
       if (dept && deptCode(c.cp) !== dept) return false;
       if (code && c.code !== code) return false;
-      if (type === "facturation" && d.isSite(c.id)) return false;
-      if (type === "site" && !d.isSite(c.id)) return false;
       if (origine === "erp" && c.ajout) return false;
       if (origine === "ajout" && !c.ajout) return false;
       return true;
@@ -60,8 +57,17 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
     else if (sort === "proprio") list.sort((a, b) => name(owner(a.c.id)).localeCompare(name(owner(b.c.id))));
     else if (!q.trim()) list.sort((a, b) => a.c.nom.localeCompare(b.c.nom));
     return list;
-  }, [q, d.index, d.active, owners, segment, dept, code, type, origine, sort, owner, team]);
+  }, [q, d.index, d.active, owners, segment, dept, code, origine, sort, owner, team]);
 
+  // Un compte par ligne : le payeur, avec l'adresse trouvée si la recherche porte sur un de ses sites.
+  const comptes = useMemo(() => {
+    const m = new Map<string, Client>();
+    for (const { c } of results) {
+      const a = d.acctOf.get(c.id) ?? c.id;
+      if (!m.has(a)) m.set(a, c);
+    }
+    return [...m].map(([id, hit]) => ({ a: d.accounts.get(id), head: d.byId.get(id) ?? hit, hit }));
+  }, [results, d]);
   const top = q.trim() && results[0];
   const toggle = (o: string) =>
     setOwners((prev) => {
@@ -71,7 +77,7 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
       return next.size ? next : new Set(allOwners);
     });
   const exportXlsx = () => {
-    const ids = new Set(results.map((r) => r.c.id));
+    const ids = new Set(comptes.flatMap((x) => x.a?.clientIds ?? [x.head.id]));
     const bytes = exportWorkbook(
       d.active.filter((c) => ids.has(c.id)),
       team,
@@ -92,7 +98,7 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
         </div>
         {isAdmin && (
           <button className="btn" onClick={exportXlsx} disabled={!results.length}>
-            <Icon name="download" size={16} /> Exporter ces {fmt(results.length)} clients
+            <Icon name="download" size={16} /> Exporter ces {fmt(comptes.length)} comptes
           </button>
         )}
       </div>
@@ -144,11 +150,6 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
               </option>
             ))}
           </select>
-          <select className="select" value={type} onChange={(e) => setType(e.target.value as typeof type)} aria-label="Type">
-            <option value="site">Adresses d'intervention</option>
-            <option value="facturation">Adresses de facturation</option>
-            <option value="">Toutes les adresses</option>
-          </select>
           <select className="select" value={origine} onChange={(e) => setOrigine(e.target.value as typeof origine)} aria-label="Origine">
             <option value="">Toutes origines</option>
             <option value="erp">Export ERP</option>
@@ -180,14 +181,14 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
       <div className="card flush">
         <div className="row" style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)" }}>
           <b>
-            {fmt(new Set(results.map(({ c }) => d.acctOf.get(c.id) ?? c.id)).size)} compte(s)
+            {fmt(comptes.length)} compte(s)
           </b>
         </div>
         <div className="table-wrap" style={{ maxHeight: "none" }}>
           <table className="table">
             <thead>
               <tr>
-                <th>Client</th>
+                <th>Compte</th>
                 <th className="hide-mobile">Typologie</th>
                 <th className="hide-mobile">Ville</th>
                 <th className="hide-mobile">N°</th>
@@ -195,32 +196,34 @@ export function SearchView({ initial, openClient }: { initial?: string; openClie
               </tr>
             </thead>
             <tbody>
-              {results.slice(0, limit).map(({ c }) => (
-                <tr key={c.id} className="clickable" onClick={() => openClient(c.id)}>
+              {comptes.slice(0, limit).map(({ a, head, hit }) => (
+                <tr key={head.id} className="clickable" onClick={() => openClient(head.id)}>
                   <td style={{ maxWidth: 360 }}>
                     <b className="ellipsis" style={{ display: "block" }}>
-                      {c.nom || "Client confidentiel"}
+                      {head.nom || "Client confidentiel"}
                     </b>
-                    <div className="small muted ellipsis">
-                      {d.isSite(c.id) ? (c.payeur ? `Compte : ${d.byId.get(c.payeur)?.nom ?? c.payeurNom ?? c.payeur}` : "") : "Adresse de facturation"}
-                    </div>
+                    {q.trim() && hit.id !== head.id && (
+                      <div className="small muted ellipsis">
+                        Trouvé : {hit.nom} · {hit.ville}
+                      </div>
+                    )}
                   </td>
-                  <td className="hide-mobile dim">{SEGMENT_BY_ID[c.segment].court}</td>
+                  <td className="hide-mobile dim">{SEGMENT_BY_ID[a?.segment ?? head.segment].court}</td>
                   <td className="hide-mobile dim">
-                    {c.cp} {c.ville}
+                    {head.cp} {head.ville}
                   </td>
-                  <td className="hide-mobile num muted">{c.numero}</td>
+                  <td className="hide-mobile num muted">{head.numero}</td>
                   <td>
-                    <Who team={team} id={owner(c.id)} />
+                    <Who team={team} id={d.acctOwner.get(a?.id ?? head.id) || undefined} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {results.length > limit && (
+          {comptes.length > limit && (
             <div className="empty" style={{ padding: 16 }}>
               <button className="btn sm" onClick={() => setLimit((l) => l + 300)}>
-                Afficher plus ({fmt(results.length - limit)} restants)
+                Afficher plus ({fmt(comptes.length - limit)} restants)
               </button>
             </div>
           )}
